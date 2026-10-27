@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
-import { db, subscribe, syncPending } from '../lib/offline'
+import { clearRejected, db, getRejected, subscribe, syncPending } from '../lib/offline'
 
 /** Indicador global: Sin conexión / Pendiente de sincronizar / Sincronizado. */
 export function SyncStatus() {
   const [online, setOnline] = useState(navigator.onLine)
   const [pending, setPending] = useState(0)
   const [conflicts, setConflicts] = useState(0)
+  const [rejected, setRejected] = useState<string[]>(getRejected())
 
   useEffect(() => {
     const refresh = async () => {
       const all = await db.pending.toArray()
       setPending(all.length)
       setConflicts(all.filter((p) => p.conflict).length)
+      setRejected(getRejected())
     }
     void refresh()
     const unsub = subscribe(() => void refresh())
@@ -35,6 +37,10 @@ export function SyncStatus() {
     cls = 'sync-pending'
     text = `Pendiente de sincronizar (${pending})`
   }
+  if (rejected.length) {
+    cls = 'sync-conflict'
+    text = `${rejected.length} cambio${rejected.length > 1 ? 's' : ''} no guardado${rejected.length > 1 ? 's' : ''}`
+  }
   if (!online) {
     cls = pending ? 'sync-pending' : 'sync-offline'
     text = pending ? `Sin conexión · pendiente de sincronizar (${pending})` : 'Sin conexión'
@@ -43,7 +49,13 @@ export function SyncStatus() {
   return (
     <button
       className={`sync-status ${cls}`}
-      onClick={() => void syncPending()}
+      onClick={() => {
+        if (rejected.length) {
+          window.alert(`No se han guardado estos cambios:\n${rejected.join('\n')}`)
+          clearRejected()
+        }
+        void syncPending()
+      }}
       title={`${text}. Pulsa para sincronizar ahora`}
       data-testid="sync-status"
     >

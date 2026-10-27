@@ -51,6 +51,16 @@ export async function queueAttendance(item: Omit<PendingAttendance, 'key' | 'que
   notify()
 }
 
+/** Cambios que el servidor rechazó definitivamente; se muestran hasta que el usuario los cierra. */
+let rejectedMessages: string[] = []
+export function getRejected() {
+  return rejectedMessages
+}
+export function clearRejected() {
+  rejectedMessages = []
+  notify()
+}
+
 type Listener = () => void
 const listeners = new Set<Listener>()
 export function subscribe(fn: Listener) {
@@ -96,6 +106,7 @@ export async function syncPending(): Promise<{ sent: number; conflicts: number; 
         }
         // Rechazo definitivo del servidor (permisos, temporada cerrada…): no se reintenta.
         rejected.push(error.message)
+        rejectedMessages = [...rejectedMessages, error.message]
         await db.pending.delete(item.key)
         continue
       }

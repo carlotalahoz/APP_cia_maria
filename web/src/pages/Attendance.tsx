@@ -5,7 +5,7 @@ import { Badge, Empty, ErrorBox, Field, Loading, Modal, PageHeader } from '../co
 import { computeStats, formatPct, isEventComplete, STATUS_INFO, STATUS_ORDER } from '../lib/attendance'
 import { loadTeams } from '../lib/data'
 import { addDays, fmtDate, fmtShort, fmtTime, isoDate, startOfWeek } from '../lib/dates'
-import { db, queueAttendance, resolveConflict, subscribe, syncPending, type PendingAttendance } from '../lib/offline'
+import { clearRejected, db, getRejected, queueAttendance, resolveConflict, subscribe, syncPending, type PendingAttendance } from '../lib/offline'
 import { errorMessage, supabase } from '../lib/supabase'
 import type { AttendanceRow, AttendanceStatus, Enrollment, EventRow, Player, Team } from '../lib/types'
 import { must } from '../lib/useAsync'
@@ -70,6 +70,7 @@ export function AttendancePage() {
   const [week, setWeek] = useState(() => startOfWeek(new Date()))
   const [grid, setGrid] = useState<GridData | null>(null)
   const [pending, setPending] = useState<PendingAttendance[]>([])
+  const [rejected, setRejected] = useState<string[]>(getRejected())
   const [fromCache, setFromCache] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -131,7 +132,10 @@ export function AttendancePage() {
   }, [load])
 
   useEffect(() => {
-    const refresh = async () => setPending(await db.pending.toArray())
+    const refresh = async () => {
+      setPending(await db.pending.toArray())
+      setRejected(getRejected())
+    }
     void refresh()
     const unsub = subscribe(() => void refresh())
     const onOnline = () => void syncPending().then(load)
@@ -162,7 +166,6 @@ export function AttendancePage() {
       base_updated_at: c.row?.updated_at ?? null,
     })
     const res = await syncPending()
-    if (res.rejected.length) setError(`No se ha guardado: ${res.rejected[0]}`)
     if (res.sent && navigator.onLine) {
       // refresca solo las filas del servidor para obtener las nuevas versiones
       const fresh = await supabase.from('attendance').select('*').in('event_id', grid!.events.map((e) => e.id))
@@ -180,8 +183,7 @@ export function AttendancePage() {
         await queueAttendance({ event_id: ev.id, player_id: pid, status: 'asistencia', notes: null, base_updated_at: cell(ev.id, pid).row?.updated_at ?? null })
       }
     }
-    const res = await syncPending()
-    if (res.rejected.length) setError(`No se ha guardado: ${res.rejected[0]}`)
+    await syncPending()
     await load()
   }
 
@@ -248,6 +250,14 @@ export function AttendancePage() {
         </div>
       )}
       {readOnly && <div className="alert alert-warn">Temporada cerrada: la asistencia es de solo lectura.</div>}
+      {rejected.length > 0 && (
+        <div className="alert alert-error">
+          <strong>No se ha guardado</strong>: {[...new Set(rejected)].join(' · ')} ({rejected.length} cambio{rejected.length > 1 ? 's' : ''}).{' '}
+          <button className="btn btn-s" onClick={clearRejected}>
+            Entendido
+          </button>
+        </div>
+      )}
       <ErrorBox error={error} />
       {loading ? (
         <Loading />
