@@ -5,7 +5,7 @@ import { AddPlayerModal } from '../components/AddPlayerModal'
 import { TeamForm } from '../components/TeamForm'
 import { Badge, Empty, ErrorBox, Loading, PageHeader } from '../components/ui'
 import { hhmm, loadCategories, loadProfiles, loadVenues } from '../lib/data'
-import { fmtDate, isoDate } from '../lib/dates'
+import { addDays, fmtDate, isoDate } from '../lib/dates'
 import { errorMessage, supabase } from '../lib/supabase'
 import {
   BRANCH_LABEL,
@@ -94,7 +94,9 @@ export function TeamDetailPage() {
   const endEnrollment = (e: EnrollmentWithPlayer) =>
     run(async () => {
       if (!confirm(`¿Dar de baja a ${e.players?.first_name} de este equipo? Su ficha e historial se conservan.`)) return
-      must(await supabase.from('enrollments').update({ end_date: today }).eq('id', e.id))
+      // La fecha de fin es inclusiva: la baja de hoy deja como último día ayer.
+      if (e.start_date >= today) must(await supabase.from('enrollments').delete().eq('id', e.id))
+      else must(await supabase.from('enrollments').update({ end_date: isoDate(addDays(new Date(), -1)) }).eq('id', e.id))
     })
 
   const removeTeam = () =>

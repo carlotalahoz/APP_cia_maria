@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
   const { data: isCoord, error: coordErr } = await asCaller.rpc('is_coord')
   if (coordErr || !isCoord) return json({ error: 'Solo la coordinadora puede administrar usuarios' }, 403)
 
+  // Escrituras en tablas públicas con el cliente del llamante para que la auditoría registre a la coordinadora.
   const admin = createClient(url, service, { auth: { persistSession: false } })
   const body = await req.json().catch(() => ({}))
 
@@ -43,10 +44,10 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 400)
         const id = data.user.id
         await admin.auth.admin.updateUserById(id, { app_metadata: { app_role: role } })
-        await admin.from('profiles').update({ role, full_name: fullName }).eq('id', id)
+        await asCaller.from('profiles').update({ role, full_name: fullName }).eq('id', id)
         const teams: { team_id: string; staff_role: string }[] = body.teams ?? []
         if (teams.length) {
-          const { error: tErr } = await admin
+          const { error: tErr } = await asCaller
             .from('team_staff')
             .insert(teams.map((t) => ({ team_id: t.team_id, user_id: id, staff_role: t.staff_role })))
           if (tErr) return json({ error: tErr.message }, 400)
@@ -58,7 +59,8 @@ Deno.serve(async (req) => {
         const active = Boolean(body.active)
         const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: active ? 'none' : '876000h' })
         if (error) return json({ error: error.message }, 400)
-        await admin.from('profiles').update({ active }).eq('id', id)
+        const { error: pErr } = await asCaller.from('profiles').update({ active }).eq('id', id)
+        if (pErr) return json({ error: pErr.message }, 400)
         return json({ ok: true })
       }
       case 'set_role': {
@@ -66,7 +68,7 @@ Deno.serve(async (req) => {
         const role = String(body.role ?? '')
         if (!ROLES.includes(role)) return json({ error: 'Rol no válido' }, 400)
         await admin.auth.admin.updateUserById(id, { app_metadata: { app_role: role } })
-        const { error } = await admin.from('profiles').update({ role }).eq('id', id)
+        const { error } = await asCaller.from('profiles').update({ role }).eq('id', id)
         if (error) return json({ error: error.message }, 400)
         return json({ ok: true })
       }

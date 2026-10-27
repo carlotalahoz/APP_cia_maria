@@ -44,10 +44,10 @@ export function SyncStatus() {
     <button
       className={`sync-status ${cls}`}
       onClick={() => void syncPending()}
-      title="Pulsa para sincronizar ahora"
+      title={`${text}. Pulsa para sincronizar ahora`}
       data-testid="sync-status"
     >
-      <span className="dot" /> {text}
+      <span className="dot" /> <span className="sync-text">{text}</span>
     </button>
   )
 }

@@ -265,3 +265,9 @@ td.st-sin_registrar { background: var(--warn-bg); }
 .sidebar { border-top: 4px solid var(--accent); }
 .page-header h1 { color: var(--primary); }
 [data-theme='dark'] .page-header h1 { color: var(--text); }
+
+@media (max-width: 520px) {
+  .topbar { padding: 8px 10px; gap: 6px; }
+  .season-select > span, .topbar .badge-warn, .sync-text { display: none; }
+  .season-select select { max-width: 120px; }
+}

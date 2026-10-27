@@ -238,7 +238,10 @@ returns boolean language sql stable security definer set search_path = public as
     join public.players pl on pl.id = e.player_id and pl.deleted_at is null and pl.active
     join public.team_staff ts on ts.team_id = e.team_id and ts.user_id = auth.uid() and ts.staff_role = 'principal'
     join public.profiles p on p.id = ts.user_id and p.active
+    join public.teams t on t.id = e.team_id
+    join public.seasons s on s.id = t.season_id and s.status = 'activa'
     where e.player_id = p_player
+      and (e.end_date is null or e.end_date >= current_date)
   )
 $$;
 

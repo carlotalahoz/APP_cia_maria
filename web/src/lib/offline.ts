@@ -66,12 +66,13 @@ function notify() {
 let syncing = false
 
 /** Envía la cola. Los conflictos quedan marcados para que el usuario elija. */
-export async function syncPending(): Promise<{ sent: number; conflicts: number; failed: number }> {
-  if (syncing || !navigator.onLine) return { sent: 0, conflicts: 0, failed: 0 }
+export async function syncPending(): Promise<{ sent: number; conflicts: number; failed: number; rejected: string[] }> {
+  if (syncing || !navigator.onLine) return { sent: 0, conflicts: 0, failed: 0, rejected: [] }
   syncing = true
   let sent = 0
   let conflicts = 0
   let failed = 0
+  const rejected: string[] = []
   try {
     const items = await db.pending.orderBy('queued_at').toArray()
     for (const item of items) {
@@ -89,8 +90,13 @@ export async function syncPending(): Promise<{ sent: number; conflicts: number; 
       })
       if (error) {
         failed++
-        await db.pending.update(item.key, { error: error.message })
-        if (isNetworkError(error.message)) break
+        if (isNetworkError(error.message)) {
+          await db.pending.update(item.key, { error: error.message })
+          break
+        }
+        // Rechazo definitivo del servidor (permisos, temporada cerrada…): no se reintenta.
+        rejected.push(error.message)
+        await db.pending.delete(item.key)
         continue
       }
       if (data?.conflict) {
@@ -105,7 +111,7 @@ export async function syncPending(): Promise<{ sent: number; conflicts: number; 
     syncing = false
     notify()
   }
-  return { sent, conflicts, failed }
+  return { sent, conflicts, failed, rejected }
 }
 
 /** Resuelve un conflicto conservando el valor local ("mine") o el del servidor. */

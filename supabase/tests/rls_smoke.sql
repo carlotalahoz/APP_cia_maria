@@ -83,4 +83,16 @@ begin
   perform pg_temp.check(ok, 'principal2 no puede registrar asistencia en equipo ajeno');
 end $$;
 
+-- Temporada cerrada: el principal deja de poder editar datos personales; la coordinadora sí puede
+select set_config('role', 'postgres', true);
+update public.seasons set status = 'cerrada';
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.check(
+  not public.can_edit_player((select player_id from public.enrollments where team_id = '30000000-0000-0000-0000-000000000001' limit 1)),
+  'principal no puede editar jugadores con la temporada cerrada');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.check(
+  public.can_edit_player((select player_id from public.enrollments where team_id = '30000000-0000-0000-0000-000000000001' limit 1)),
+  'coordinadora puede editar jugadores con la temporada cerrada');
+
 rollback;

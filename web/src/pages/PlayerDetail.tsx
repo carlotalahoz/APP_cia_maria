@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { PlayerForm, validatePlayer, type PlayerDraft } from '../components/PlayerForm'
 import { Badge, ErrorBox, Loading, PageHeader } from '../components/ui'
 import { computeStats, formatPct, STATUS_INFO, STATUS_ORDER } from '../lib/attendance'
-import { age, fmtDate, fmtShort, fmtTime } from '../lib/dates'
+import { age, fmtDate, fmtShort, fmtTime, isoDate } from '../lib/dates'
 import { errorMessage, supabase } from '../lib/supabase'
 import { KIND_LABEL, type AttendanceRow, type Enrollment, type EventRow, type Player, type Season, type Team } from '../lib/types'
 import { must, useAsync } from '../lib/useAsync'
@@ -19,7 +19,7 @@ const TABS: [Tab, string][] = [
   ['observaciones', 'Observaciones'],
 ]
 
-type EnrollmentFull = Enrollment & { teams: (Pick<Team, 'id' | 'name' | 'code'> & { seasons: Pick<Season, 'name'> | null }) | null }
+type EnrollmentFull = Enrollment & { teams: (Pick<Team, 'id' | 'name' | 'code'> & { seasons: Pick<Season, 'name' | 'status'> | null }) | null }
 
 export function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -35,7 +35,7 @@ export function PlayerDetailPage() {
     const player = must(await supabase.from('players').select('*').eq('id', id!).maybeSingle()) as Player | null
     if (!player) throw new Error('Jugador no encontrado o sin permiso para verlo.')
     const enrollments = must(
-      await supabase.from('enrollments').select('*, teams(id,name,code,seasons(name))').eq('player_id', id!).order('start_date'),
+      await supabase.from('enrollments').select('*, teams(id,name,code,seasons(name,status))').eq('player_id', id!).order('start_date'),
     ) as EnrollmentFull[]
     const attendance = must(
       await supabase.from('attendance').select('*, events(id,team_id,type,starts_at,ends_at,status)').eq('player_id', id!),
@@ -46,7 +46,12 @@ export function PlayerDetailPage() {
   if (loading) return <Loading />
   if (error || !data) return <ErrorBox error={error} />
   const { player } = data
-  const canEdit = isCoord || data.enrollments.some((e) => !e.end_date && isPrincipalOf(e.team_id))
+  const today = isoDate(new Date())
+  const canEdit =
+    isCoord ||
+    data.enrollments.some(
+      (e) => (!e.end_date || e.end_date >= today) && isPrincipalOf(e.team_id) && e.teams?.seasons?.status === 'activa',
+    )
 
   const save = async () => {
     const v = validatePlayer(draft)

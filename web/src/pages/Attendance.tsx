@@ -63,7 +63,8 @@ async function fetchGrid(team: Team, weekStart: Date): Promise<GridData> {
 }
 
 export function AttendancePage() {
-  const { isCoord, staff, seasonId } = useAuth()
+  const { isCoord, staff, seasonId, seasons } = useAuth()
+  const readOnly = !isCoord && seasons.find((s) => s.id === seasonId)?.status === 'cerrada'
   const [params, setParams] = useSearchParams()
   const [teams, setTeams] = useState<Team[]>([])
   const [week, setWeek] = useState(() => startOfWeek(new Date()))
@@ -161,6 +162,7 @@ export function AttendancePage() {
       base_updated_at: c.row?.updated_at ?? null,
     })
     const res = await syncPending()
+    if (res.rejected.length) setError(`No se ha guardado: ${res.rejected[0]}`)
     if (res.sent && navigator.onLine) {
       // refresca solo las filas del servidor para obtener las nuevas versiones
       const fresh = await supabase.from('attendance').select('*').in('event_id', grid!.events.map((e) => e.id))
@@ -178,7 +180,8 @@ export function AttendancePage() {
         await queueAttendance({ event_id: ev.id, player_id: pid, status: 'asistencia', notes: null, base_updated_at: cell(ev.id, pid).row?.updated_at ?? null })
       }
     }
-    await syncPending()
+    const res = await syncPending()
+    if (res.rejected.length) setError(`No se ha guardado: ${res.rejected[0]}`)
     await load()
   }
 
@@ -244,6 +247,7 @@ export function AttendancePage() {
           </ul>
         </div>
       )}
+      {readOnly && <div className="alert alert-warn">Temporada cerrada: la asistencia es de solo lectura.</div>}
       <ErrorBox error={error} />
       {loading ? (
         <Loading />
@@ -269,9 +273,11 @@ export function AttendancePage() {
                       ) : (
                         <>
                           <Badge tone="warn">{pend} pendientes</Badge>
-                          <button className="link small block" onClick={() => markAllPresent(ev)}>
-                            Todos presentes
-                          </button>
+                          {!readOnly && (
+                            <button className="link small block" onClick={() => markAllPresent(ev)}>
+                              Todos presentes
+                            </button>
+                          )}
                         </>
                       )}
                     </th>
@@ -294,7 +300,7 @@ export function AttendancePage() {
                     {activeEvents.map((ev) => {
                       if (!grid.roster[ev.id].includes(p.id)) return <td key={ev.id} className="na">—</td>
                       const c = cell(ev.id, p.id)
-                      const disabled = ev.status === 'cancelado'
+                      const disabled = readOnly || ev.status === 'cancelado'
                       return (
                         <td key={ev.id} className={`att-cell st-${c.status}`}>
                           <select
