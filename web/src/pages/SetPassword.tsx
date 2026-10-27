@@ -28,7 +28,7 @@ export function SetPasswordPage() {
     <div className="auth-page">
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand">
-          <Shield size={56} />
+          <Shield size={90} />
           <h1>Establecer contraseña</h1>
         </div>
         {!session ? (

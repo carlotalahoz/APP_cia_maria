@@ -23,7 +23,7 @@ export function RecoverPage() {
     <div className="auth-page">
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand">
-          <Shield size={56} />
+          <Shield size={90} />
           <h1>Recuperar contraseña</h1>
         </div>
         {sent ? (

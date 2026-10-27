@@ -33,7 +33,7 @@ export function LoginPage() {
     <div className="auth-page">
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand">
-          <Shield size={64} />
+          <Shield size={110} />
           <h1>AD Compañía de María</h1>
           <p className="muted">Gestión de baloncesto</p>
         </div>
