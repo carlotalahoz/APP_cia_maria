@@ -231,7 +231,7 @@ export function ReportsPage() {
         </div>
       )}
       <p className="print-only">
-        AD Compañía de María · Informe de {tabs.find((t) => t[0] === tab)?.[1].toLowerCase()} · {team?.name ?? 'Todos los equipos'} · {fmtDate(from)} – {fmtDate(to)}
+        AD Compañía de María · {tab === 'general' ? 'Informe general' : `Informe de ${tab}`} · {tab === 'general' ? 'Todos los equipos' : (team?.name ?? 'Todos los equipos')} · {fmtDate(from)} – {fmtDate(to)}
       </p>
       <ErrorBox error={error ?? err} />
       {tab === 'jugador' && playerParam ? (

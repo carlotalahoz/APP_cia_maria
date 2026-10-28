@@ -317,7 +317,12 @@ tr.clickable:hover td { background: var(--surface-2); }
 .bell-panel li.unread .bell-title::before { content: '● '; color: var(--primary-2); }
 
 /* Fase 3 */
-.bar-chart { width: 100%; height: 180px; color: var(--text); }
+.bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 200px; padding-top: 18px; overflow-x: auto; }
+.bar-col { flex: 1 0 28px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 28px; }
+.bar { width: 70%; border-radius: 4px 4px 0 0; min-height: 1px; }
+.bar-value { font-size: 0.75rem; font-weight: 600; }
+.bar-label { font-size: 0.7rem; color: var(--muted); margin-top: 4px; white-space: nowrap; }
+@media print { .bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .print-only { display: none; }
 @media print {
   .print-only { display: block; font-weight: 600; }
