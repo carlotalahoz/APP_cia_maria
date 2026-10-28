@@ -29,7 +29,8 @@ export function findConflicts(events: EventRow[]): Set<string> {
 }
 
 export function CalendarPage() {
-  const { isCoord, staff, seasonId, isStaffOf } = useAuth()
+  const { isCoord, staff, seasonId, isStaffOf, seasons } = useAuth()
+  const seasonOpen = seasons.find((s) => s.id === seasonId)?.status === 'activa'
   const [params, setParams] = useSearchParams()
   const [week, setWeek] = useState(() => {
     const s = params.get('semana')
@@ -79,7 +80,7 @@ export function CalendarPage() {
   }, [data, teamFilter, catFilter, venueFilter, typeFilter])
   const conflicts = useMemo(() => findConflicts(data?.events ?? []), [data])
 
-  const coachTeams = (data?.teams ?? []).filter((t) => isCoord || staff.some((s) => s.team_id === t.id && s.staff_role !== 'delegado'))
+  const coachTeams = (data?.teams ?? []).filter((t) => isCoord || (seasonOpen && staff.some((s) => s.team_id === t.id && s.staff_role !== 'delegado')))
   const openEvent = openId ? data?.events.find((e) => e.id === openId) : undefined
   const setOpen = (id: string | null) => {
     const p = new URLSearchParams(params)

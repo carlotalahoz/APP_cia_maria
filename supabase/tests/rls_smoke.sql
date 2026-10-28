@@ -232,6 +232,12 @@ begin
   exception when others then ok := true;
   end;
   perform pg_temp.check(ok, 'con la temporada cerrada el entrenador no propone actividades');
+  ok := false;
+  begin
+    perform public.cancel_event_request((select id from public.event_requests where status = 'pendiente' limit 1));
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'con la temporada cerrada el entrenador no anula solicitudes');
 end $$;
 
 rollback;

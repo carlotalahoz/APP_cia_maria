@@ -12,7 +12,8 @@ import { EVENT_STATUS_LABEL, type EventRow, type EventStatus, type MatchRow } fr
 import { must, useAsync } from '../lib/useAsync'
 
 export function MatchesPage() {
-  const { isCoord, staff, seasonId } = useAuth()
+  const { isCoord, staff, seasonId, seasons } = useAuth()
+  const seasonOpen = seasons.find((s) => s.id === seasonId)?.status === 'activa'
   const navigate = useNavigate()
   const [teamFilter, setTeamFilter] = useState('')
   const [compFilter, setCompFilter] = useState('')
@@ -42,7 +43,7 @@ export function MatchesPage() {
   }, [data, teamFilter, compFilter, statusFilter])
 
   const competitions = [...new Set((data?.matches ?? []).map((m) => m.competition).filter(Boolean))] as string[]
-  const coachTeams = (data?.teams ?? []).filter((t) => isCoord || staff.some((s) => s.team_id === t.id && s.staff_role !== 'delegado'))
+  const coachTeams = (data?.teams ?? []).filter((t) => isCoord || (seasonOpen && staff.some((s) => s.team_id === t.id && s.staff_role !== 'delegado')))
   const teamName = (id: string) => data?.teams.find((t) => t.id === id)?.name ?? ''
 
   return (

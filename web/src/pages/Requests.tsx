@@ -18,7 +18,8 @@ const REQ_LABEL: Record<EventRequest['status'], [string, 'warn' | 'ok' | 'danger
 
 /** Aprobaciones: propuestas de actividades/partidos y solicitudes de cambio de horario o pista. */
 export function RequestsPage() {
-  const { isCoord, staff, seasonId, profile } = useAuth()
+  const { isCoord, staff, seasonId, profile, seasons } = useAuth()
+  const seasonOpen = seasons.find((s) => s.id === seasonId)?.status === 'activa'
   const [err, setErr] = useState<string | null>(null)
   const myIds = staff.map((s) => s.team_id)
 
@@ -168,7 +169,7 @@ export function RequestsPage() {
                       </button>
                     </>
                   )}
-                  {!isCoord && r.status === 'pendiente' && r.requested_by === profile?.id && (
+                  {!isCoord && seasonOpen && r.status === 'pendiente' && r.requested_by === profile?.id && (
                     <button className="btn btn-s" onClick={() => void act(async () => must(await supabase.rpc('cancel_event_request', { p_request: r.id })))}>
                       Anular
                     </button>

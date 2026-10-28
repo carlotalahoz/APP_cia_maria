@@ -484,8 +484,9 @@ end $$;
 create or replace function public.cancel_event_request(p_request uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  update public.event_requests set status = 'anulada', resolved_by = auth.uid(), resolved_at = now()
-  where id = p_request and status = 'pendiente' and (requested_by = auth.uid() or public.is_coord());
+  update public.event_requests r set status = 'anulada', resolved_by = auth.uid(), resolved_at = now()
+  where r.id = p_request and r.status = 'pendiente'
+    and (public.is_coord() or (r.requested_by = auth.uid() and public.team_season_open(public.event_team(r.event_id))));
   if not found then
     raise exception 'No se puede anular esta solicitud';
   end if;
