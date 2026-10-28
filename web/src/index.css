@@ -309,3 +309,9 @@ tr.clickable:hover td { background: var(--surface-2); }
   .main { margin: 0 !important; }
   .cal-week { grid-template-columns: repeat(7, 1fr); }
 }
+
+/* Notificaciones: elementos como bloques legibles (también en modo oscuro) */
+.bell-panel { overflow-x: hidden; max-width: calc(100vw - 16px); }
+.bell-panel li button { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.bell-panel li button > span { display: block; overflow-wrap: anywhere; }
+.bell-panel li.unread .bell-title::before { content: '● '; color: var(--primary-2); }
