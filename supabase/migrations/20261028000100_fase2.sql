@@ -679,3 +679,50 @@ revoke execute on function public.event_label(public.events) from public, anon;
 revoke execute on function public.assert_event_coach(uuid) from public, anon, authenticated;
 revoke execute on function public.assert_match_coach(uuid) from public, anon, authenticated;
 revoke execute on function public.match_reports_notify() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Generación de entrenamientos: al cambiar un horario fijo, reconcilia las sesiones futuras
+-- generadas que no se han tocado (sin asistencia, cambios ni solicitudes) en lugar de duplicarlas.
+-- ---------------------------------------------------------------------------
+create or replace function public.generate_training_sessions(p_team uuid, p_from date default null)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  v_start date;
+  v_end date;
+  v_count int;
+begin
+  if not public.is_coord() then
+    raise exception 'Solo la coordinadora genera entrenamientos';
+  end if;
+  select greatest(s.start_date, coalesce(p_from, s.start_date)), s.end_date into v_start, v_end
+  from public.teams t join public.seasons s on s.id = t.season_id where t.id = p_team;
+
+  delete from public.events e
+  where e.team_id = p_team and e.type = 'entrenamiento' and not e.extraordinary and e.created_by is null
+    and e.status = 'programado' and e.updated_at = e.created_at
+    and e.starts_at >= (v_start::timestamp at time zone 'Europe/Madrid')
+    and not exists (select 1 from public.attendance a where a.event_id = e.id and a.status <> 'sin_registrar')
+    and not exists (select 1 from public.event_requests r where r.event_id = e.id)
+    and not exists (select 1 from public.enrollments en where en.event_id = e.id)
+    and not exists (
+      select 1 from public.training_slots sl
+      where sl.id = e.slot_id
+        and extract(isodow from e.starts_at at time zone 'Europe/Madrid') = sl.weekday
+        and (e.starts_at at time zone 'Europe/Madrid')::time = sl.start_time
+        and (e.ends_at at time zone 'Europe/Madrid')::time = sl.end_time
+        and e.venue_id is not distinct from sl.venue_id);
+
+  with ins as (
+    insert into public.events (team_id, type, starts_at, ends_at, venue_id, slot_id)
+    select p_team, 'entrenamiento',
+      (d::date + sl.start_time) at time zone 'Europe/Madrid',
+      (d::date + sl.end_time) at time zone 'Europe/Madrid',
+      sl.venue_id, sl.id
+    from public.training_slots sl
+    cross join generate_series(v_start, v_end, interval '1 day') d
+    where sl.team_id = p_team and extract(isodow from d) = sl.weekday
+    on conflict (slot_id, starts_at) where slot_id is not null do nothing
+    returning 1
+  ) select count(*) into v_count from ins;
+  return v_count;
+end $$;

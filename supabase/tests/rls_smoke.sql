@@ -212,6 +212,23 @@ insert into public.match_reports (event_id, path, file_name) values ((select v f
 select pg_temp.check((select count(*) from public.match_reports where event_id = (select v from t_f2 where k = 'prop')) = 1,
   'el entrenador adjunta el acta');
 
+-- Cambiar un horario fijo y regenerar no duplica las sesiones futuras
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+update public.training_slots set start_time = '17:45', end_time = '19:15'
+where team_id = '30000000-0000-0000-0000-000000000001' and weekday = 1;
+select public.generate_training_sessions('30000000-0000-0000-0000-000000000001', current_date);
+select pg_temp.check((
+  select bool_and(n = 1) from (
+    select count(*) n from public.events
+    where team_id = '30000000-0000-0000-0000-000000000001' and type = 'entrenamiento' and status = 'programado'
+      and extract(isodow from starts_at at time zone 'Europe/Madrid') = 1 and starts_at > now() + interval '8 days'
+    group by (starts_at at time zone 'Europe/Madrid')::date) q),
+  'regenerar tras cambiar el horario no duplica entrenamientos');
+select pg_temp.check(exists (
+  select 1 from public.events where team_id = '30000000-0000-0000-0000-000000000001' and starts_at > now() + interval '8 days'
+    and extract(isodow from starts_at at time zone 'Europe/Madrid') = 1 and (starts_at at time zone 'Europe/Madrid')::time = '17:45'),
+  'las sesiones futuras toman el nuevo horario');
+
 -- Temporada cerrada: el principal deja de poder editar datos personales; la coordinadora sí puede
 select set_config('role', 'postgres', true);
 update public.seasons set status = 'cerrada';
