@@ -627,16 +627,20 @@ function ReportsTab({ data, canCoach, name, run }: { data: Data; canCoach: boole
   const upload = () =>
     run(async () => {
       if (!files?.length) throw new Error('Selecciona uno o varios archivos (PDF o imagen).')
-      if (replace && current.length)
-        must(await supabase.from('match_reports').update({ replaced_at: new Date().toISOString() }).in('id', current.map((r) => r.id)))
-      for (const f of Array.from(files)) {
-        if (f.size > 10 * 1024 * 1024) throw new Error(`${f.name} supera 10 MB.`)
+      const list = Array.from(files)
+      const tooBig = list.find((f) => f.size > 10 * 1024 * 1024)
+      if (tooBig) throw new Error(`${tooBig.name} supera 10 MB.`)
+      // Las actas actuales solo se archivan cuando las nuevas ya se han guardado.
+      const previous = current.map((r) => r.id)
+      for (const f of list) {
         const safe = f.name.normalize('NFD').replace(/[^\w.-]+/g, '_')
         const path = `${ev.id}/${crypto.randomUUID()}-${safe}`
         const up = await supabase.storage.from('actas').upload(path, f, { contentType: f.type })
         if (up.error) throw new Error(up.error.message)
         must(await supabase.from('match_reports').insert({ event_id: ev.id, path, file_name: f.name, mime: f.type }))
       }
+      if (replace && previous.length)
+        must(await supabase.from('match_reports').update({ replaced_at: new Date().toISOString() }).in('id', previous))
       setFiles(null)
     }, 'Acta guardada. Se ha avisado a coordinación.')
 
