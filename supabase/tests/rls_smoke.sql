@@ -83,6 +83,135 @@ begin
   perform pg_temp.check(ok, 'principal2 no puede registrar asistencia en equipo ajeno');
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Fase 2: calendario, aprobaciones, partidos y convocatorias
+-- ---------------------------------------------------------------------------
+-- Principal 2 no ve partidos ni solicitudes del otro equipo
+select pg_temp.as_user('00000000-0000-0000-0000-000000000005');
+select pg_temp.check(not exists (select 1 from public.matches m join public.events e on e.id = m.event_id
+  where e.team_id = '30000000-0000-0000-0000-000000000001'), 'principal2 no ve partidos del otro equipo');
+select pg_temp.check((select count(*) from public.event_requests) = 0, 'principal2 no ve solicitudes del otro equipo');
+
+-- Entrenador propone partido → queda pendiente de aprobación y avisa a coordinación
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+create temp table t_f2 (k text primary key, v uuid);
+grant all on t_f2 to authenticated;
+insert into t_f2 values ('prop', public.propose_event('30000000-0000-0000-0000-000000000001', 'partido',
+  now() + interval '20 days', now() + interval '20 days 90 minutes', null, null, null,
+  '{"opponent":"CB Prueba","kind":"amistoso","home":false,"away_location":"Pabellón X"}'));
+select pg_temp.check((select status from public.events where id = (select v from t_f2 where k = 'prop')) = 'pendiente_aprobacion',
+  'propuesta del entrenador queda pendiente de aprobación');
+
+-- Delegado no puede proponer, cancelar ni convocar
+select pg_temp.as_user('00000000-0000-0000-0000-000000000004');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.propose_event('30000000-0000-0000-0000-000000000001', 'tecnificacion', now() + interval '3 days', now() + interval '3 days 1 hour');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'delegado no puede proponer actividades');
+  ok := false;
+  begin
+    perform public.cancel_event((select id from public.events where team_id = '30000000-0000-0000-0000-000000000001'
+      and type = 'entrenamiento' and starts_at > now() order by starts_at limit 1), 'prueba');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'delegado no puede cancelar entrenamientos');
+end $$;
+
+-- Asistencia en propuesta sin aprobar: rechazada
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.save_attendance((select v from t_f2 where k = 'prop'), (select player_id from public.enrollments
+      where team_id = '30000000-0000-0000-0000-000000000001' limit 1), 'asistencia', null, null, false);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'no se registra asistencia en un partido sin aprobar');
+end $$;
+
+-- Entrenador no puede cambiar directamente un entrenamiento: debe solicitarlo
+do $$
+declare ok boolean := false; ev uuid;
+begin
+  select id into ev from public.events where team_id = '30000000-0000-0000-0000-000000000001' and type = 'entrenamiento'
+    and starts_at > now() + interval '3 days'
+    and not exists (select 1 from public.event_requests r where r.event_id = events.id and r.status = 'pendiente')
+  order by starts_at limit 1;
+  begin
+    perform public.update_event(ev, now() + interval '30 days', now() + interval '30 days 1 hour', null);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'entrenador no modifica entrenamientos sin aprobación');
+  insert into t_f2 values ('req', public.request_event_change(ev, now() + interval '30 days', now() + interval '30 days 1 hour',
+    '10000000-0000-0000-0000-000000000003', 'Prueba'));
+  insert into t_f2 values ('reqev', ev);
+  perform pg_temp.check((select starts_at from public.events where id = ev) < now() + interval '29 days',
+    'la sesión no cambia antes de la aprobación');
+end $$;
+
+-- Coordinadora aprueba propuesta y solicitud
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.check(exists (select 1 from public.notifications where title = 'Propuesta pendiente de aprobación'),
+  'coordinación recibe aviso de la propuesta');
+select public.resolve_event_proposal((select v from t_f2 where k = 'prop'), true, null);
+select public.resolve_event_request((select v from t_f2 where k = 'req'), true, 'OK');
+select pg_temp.check((select venue_id from public.events where id = (select v from t_f2 where k = 'reqev')) = '10000000-0000-0000-0000-000000000003',
+  'el cambio aprobado se aplica al calendario');
+
+-- Convocatoria y asistencia del partido solo para convocados
+select pg_temp.as_user('00000000-0000-0000-0000-000000000003');
+select public.set_callup((select v from t_f2 where k = 'prop'),
+  array(select player_id from public.enrollments where team_id = '30000000-0000-0000-0000-000000000001' and kind = 'plantilla' order by player_id limit 3));
+select pg_temp.check((select count(*) from public.event_roster((select v from t_f2 where k = 'prop'))) = 3,
+  'la lista de asistencia del partido sale de los convocados');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    -- jugador del Infantil (no visible para el ayudante del Alevín)
+    perform public.set_callup((select v from t_f2 where k = 'prop'), array['40000000-0000-0000-0000-000000000011'::uuid]);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'no se convoca a jugadores de otro equipo');
+  ok := false;
+  begin
+    perform public.save_attendance((select v from t_f2 where k = 'prop'), (select player_id from public.enrollments
+      where team_id = '30000000-0000-0000-0000-000000000001' and kind = 'plantilla' order by player_id desc limit 1), 'asistencia', null, null, false);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'no se registra asistencia de un no convocado');
+end $$;
+
+-- Aplazamiento conserva la fecha original; resultado finaliza y avisa
+select public.postpone_match((select v from t_f2 where k = 'prop'), 'Lluvia');
+select pg_temp.check((select status = 'pendiente' and original_starts_at is not null from public.events where id = (select v from t_f2 where k = 'prop')),
+  'aplazado sin fecha queda como partido pendiente con fecha original');
+select public.postpone_match((select v from t_f2 where k = 'prop'), 'Nueva fecha', now() + interval '25 days');
+select public.save_match_result((select v from t_f2 where k = 'prop'), 40, 35, '[{"for":20,"against":15},{"for":20,"against":20}]'::jsonb);
+select pg_temp.check((select status from public.events where id = (select v from t_f2 where k = 'prop')) = 'finalizado',
+  'registrar el resultado finaliza el partido');
+
+-- Actas: el delegado no puede subir
+select pg_temp.as_user('00000000-0000-0000-0000-000000000004');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    insert into public.match_reports (event_id, path, file_name) values ((select v from t_f2 where k = 'prop'), 'x/y.pdf', 'y.pdf');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'delegado no puede adjuntar actas');
+end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+insert into public.match_reports (event_id, path, file_name) values ((select v from t_f2 where k = 'prop'), (select v from t_f2 where k = 'prop') || '/acta.pdf', 'acta.pdf');
+select pg_temp.check((select count(*) from public.match_reports where event_id = (select v from t_f2 where k = 'prop')) = 1,
+  'el entrenador adjunta el acta');
+
 -- Temporada cerrada: el principal deja de poder editar datos personales; la coordinadora sí puede
 select set_config('role', 'postgres', true);
 update public.seasons set status = 'cerrada';
@@ -94,5 +223,15 @@ select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select pg_temp.check(
   public.can_edit_player((select player_id from public.enrollments where team_id = '30000000-0000-0000-0000-000000000001' limit 1)),
   'coordinadora puede editar jugadores con la temporada cerrada');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.propose_event('30000000-0000-0000-0000-000000000001', 'tecnificacion', now() + interval '3 days', now() + interval '3 days 1 hour');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'con la temporada cerrada el entrenador no propone actividades');
+end $$;
 
 rollback;
