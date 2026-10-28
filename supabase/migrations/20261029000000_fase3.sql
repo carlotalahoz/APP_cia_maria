@@ -554,7 +554,8 @@ begin
   end if;
   perform set_config('app.restoring', 'on', true);
   for i in reverse array_length(v_tables, 1) .. 1 loop
-    execute format('delete from public.%I', v_tables[i]);
+    -- "where true": PostgREST (pg-safeupdate) rechaza DELETE sin WHERE.
+    execute format('delete from public.%I where true', v_tables[i]);
   end loop;
   foreach t in array v_tables loop
     if t = 'team_staff' then
