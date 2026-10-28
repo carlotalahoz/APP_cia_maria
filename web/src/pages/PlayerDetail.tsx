@@ -41,7 +41,7 @@ export function PlayerDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, error, loading, reload, setData } = useAsync(async () => {
     const player = must(await supabase.from('players').select('*').eq('id', id!).maybeSingle()) as Player | null
     if (!player) throw new Error('Jugador no encontrado o sin permiso para verlo.')
     const enrollments = must(
@@ -310,7 +310,8 @@ export function PlayerDetailPage() {
             canEdit={canEdit}
             onSave={async (v) => {
               must(await supabase.from('players').update({ observations: v || null }).eq('id', player.id))
-              await reload()
+              // Actualización local: recargar desmontaría la pestaña y perdería el aviso de guardado.
+              setData((d) => d && { ...d, player: { ...d.player, observations: v || null } })
             }}
           />
         )}
