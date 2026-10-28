@@ -148,6 +148,7 @@ export interface MatchRow {
   incidents: string | null
   suspended: boolean
   staff_present: string[]
+  callup_saved_at: string | null
   result_at: string | null
 }
 

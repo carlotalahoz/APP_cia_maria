@@ -138,6 +138,7 @@ insert into public.match_callups (event_id, player_id, created_by)
 select ev.id, e.player_id, (select user_id from public.team_staff where team_id = ev.team_id and staff_role = 'principal' limit 1)
 from public.events ev join public.enrollments e on e.team_id = ev.team_id and e.kind = 'plantilla'
 where ev.type = 'partido';
+update public.matches set callup_saved_at = now() where exists (select 1 from public.match_callups c where c.event_id = matches.event_id);
 
 -- Resultados de los partidos ya jugados
 update public.matches set score_for = r.f, score_against = r.a, periods = r.p::jsonb,

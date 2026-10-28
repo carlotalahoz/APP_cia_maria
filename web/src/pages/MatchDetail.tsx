@@ -426,10 +426,10 @@ function CallupTab({ data, canCoach, run, reload }: { data: Data; canCoach: bool
     .filter((e, i, arr) => arr.findIndex((x) => x.player_id === e.player_id) === i)
     .sort((a, b) => Number(b.kind === 'plantilla') - Number(a.kind === 'plantilla') || a.players!.last_name.localeCompare(b.players!.last_name, 'es'))
   // Sin convocatoria guardada, se preseleccionan los habituales (plantilla y suben habituales).
-  const initial = data.callups.length ? data.callups : candidates.filter((c) => c.kind !== 'sube_puntual').map((c) => c.player_id)
+  const saved = !!data.match.callup_saved_at
+  const initial = saved ? data.callups : candidates.filter((c) => c.kind !== 'sube_puntual').map((c) => c.player_id)
   const [sel, setSel] = useState<string[]>(initial)
   const [adding, setAdding] = useState(false)
-  const saved = data.callups.length > 0
   const dirty = !saved || sel.length !== data.callups.length || sel.some((p) => !data.callups.includes(p))
 
   return (

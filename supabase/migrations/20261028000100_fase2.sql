@@ -34,6 +34,7 @@ create table public.matches (
   incidents text,
   suspended boolean not null default false,
   staff_present uuid[] not null default '{}',
+  callup_saved_at timestamptz,
   result_by uuid references public.profiles (id),
   result_at timestamptz,
   check ((score_for is null) = (score_against is null))
@@ -578,6 +579,7 @@ begin
   insert into public.match_callups (event_id, player_id, created_by)
   select p_event, pid, auth.uid() from unnest(coalesce(p_players, '{}')) pid
   on conflict do nothing;
+  update public.matches set callup_saved_at = now() where event_id = p_event;
   select count(*) into v_n from public.match_callups where event_id = p_event;
   return v_n;
 end $$;
