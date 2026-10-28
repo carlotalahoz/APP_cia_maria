@@ -185,3 +185,25 @@ select id, '00000000-0000-0000-0000-000000000002', starts_at, ends_at, '10000000
 from public.events
 where team_id = '30000000-0000-0000-0000-000000000001' and type = 'entrenamiento' and starts_at > now() + interval '1 day'
 order by starts_at limit 1;
+
+-- ---------------------------------------------------------------------------
+-- Fase 3: tipos documentales, documentos y copia inicial
+-- ---------------------------------------------------------------------------
+insert into public.document_types (id, name, owner, required, per_season, reserved, sort_order) values
+  ('60000000-0000-0000-0000-000000000001', 'Ficha de inscripción', 'jugador', true, true, false, 1),
+  ('60000000-0000-0000-0000-000000000002', 'Autorización de imagen', 'jugador', true, true, false, 2),
+  ('60000000-0000-0000-0000-000000000003', 'Copia del DNI', 'jugador', false, false, true, 3),
+  ('60000000-0000-0000-0000-000000000004', 'Certificado de delitos sexuales', 'tecnico', true, false, false, 4),
+  ('60000000-0000-0000-0000-000000000005', 'Titulación de entrenador', 'tecnico', false, false, false, 5);
+
+-- La mitad del Alevín ya ha entregado la ficha de inscripción de la temporada (solo metadatos de ejemplo)
+insert into public.player_documents (player_id, type_id, season_id, path, file_name, mime, size, uploaded_by)
+select id, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000002627',
+  'jugadores/' || id || '/ejemplo-ficha.pdf', 'ficha_inscripcion.pdf', 'application/pdf', 120000,
+  '00000000-0000-0000-0000-000000000002'
+from public.players where right(id::text, 2)::int between 1 and 5;
+
+insert into public.incidents (user_id, title, description) values
+  ('00000000-0000-0000-0000-000000000003', 'No carga la asistencia en el móvil', 'Ayer por la tarde se quedó cargando un rato en el pabellón.');
+
+select public.create_backup('automatica');

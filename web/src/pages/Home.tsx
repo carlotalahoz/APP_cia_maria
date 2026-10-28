@@ -16,13 +16,15 @@ interface HomeData {
   pctByTeam: Record<string, number | null>
   upcoming: (EventRow & { matches: Pick<MatchRow, 'opponent' | 'home'> | null })[]
   approvals: number
+  results: (EventRow & { matches: Pick<MatchRow, 'opponent' | 'home' | 'score_for' | 'score_against'> | null })[]
+  missingDocs: number
 }
 
 async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Promise<HomeData> {
   let teams = await loadTeams(seasonId)
   if (myTeamIds) teams = teams.filter((t) => myTeamIds.includes(t.id))
   const ids = teams.map((t) => t.id)
-  if (!ids.length) return { teams, week: [], pendingByTeam: {}, pctByTeam: {}, upcoming: [], approvals: 0 }
+  if (!ids.length) return { teams, week: [], pendingByTeam: {}, pctByTeam: {}, upcoming: [], approvals: 0, results: [], missingDocs: 0 }
 
   const monday = startOfWeek(new Date())
   const week = must(
@@ -84,7 +86,12 @@ async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Pr
       pctByTeam[t] = s.percentage
     }
   }
-  return { teams, week, pendingByTeam, pctByTeam, upcoming, approvals }
+  const results = must(
+    await supabase.from('events').select('*, matches(opponent,home,score_for,score_against)').in('team_id', ids).eq('type', 'partido').eq('status', 'finalizado').order('starts_at', { ascending: false }).limit(5),
+  ) as HomeData['results']
+  const missing = seasonId ? await supabase.rpc('missing_player_documents', { p_season: seasonId }) : { data: [] }
+  const missingDocs = (missing.data as unknown[] | null)?.length ?? 0
+  return { teams, week, pendingByTeam, pctByTeam, upcoming, approvals, results, missingDocs }
 }
 
 export function HomePage() {
@@ -205,6 +212,40 @@ export function HomePage() {
               <p className="muted small">Propuestas de partidos y actividades y cambios de horario o pista.</p>
               <Link to="/solicitudes" className="btn btn-s">
                 {isCoord ? 'Ir a aprobaciones' : 'Ver solicitudes'}
+              </Link>
+            </section>
+          </div>
+
+          <div className="grid-2">
+            <section className="card">
+              <h2>Últimos resultados</h2>
+              {data.results.length === 0 ? (
+                <p className="muted">Todavía no hay resultados.</p>
+              ) : (
+                <ul className="list">
+                  {data.results.map((ev) => (
+                    <li key={ev.id}>
+                      <Link to={`/partidos/${ev.id}`} className="list-main">
+                        <strong>
+                          {teamName(ev.team_id)} {ev.matches?.home ? 'vs' : '@'} {ev.matches?.opponent}
+                        </strong>
+                        <span className="muted">{fmtShort(ev.starts_at)}</span>
+                      </Link>
+                      <strong>
+                        {ev.matches?.score_for}-{ev.matches?.score_against}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="card">
+              <h2>
+                Documentación pendiente <Badge tone={data.missingDocs ? 'warn' : 'ok'}>{data.missingDocs}</Badge>
+              </h2>
+              <p className="muted small">Documentos obligatorios de jugadores que faltan esta temporada.</p>
+              <Link to="/documentacion" className="btn btn-s">
+                Ver documentación
               </Link>
             </section>
           </div>

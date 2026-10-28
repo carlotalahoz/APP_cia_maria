@@ -6,7 +6,11 @@ import { Loading } from './components/ui'
 import { startAutoSync } from './lib/offline'
 import { AttendancePage } from './pages/Attendance'
 import { AuditPage } from './pages/Audit'
+import { BackupsPage } from './pages/Backups'
 import { CalendarPage } from './pages/Calendar'
+import { DocumentationPage } from './pages/Documentation'
+import { IncidentsPage } from './pages/Incidents'
+import { ReportsPage } from './pages/Reports'
 import { ConfigPage } from './pages/Config'
 import { HomePage } from './pages/Home'
 import { LoginPage } from './pages/Login'
@@ -55,6 +59,10 @@ export default function App() {
             <Route path="partidos" element={<MatchesPage />} />
             <Route path="partidos/:id" element={<MatchDetailPage />} />
             <Route path="solicitudes" element={<RequestsPage />} />
+            <Route path="documentacion" element={<DocumentationPage />} />
+            <Route path="informes" element={<ReportsPage />} />
+            <Route path="incidencias" element={<IncidentsPage />} />
+            <Route path="copias" element={<CoordOnly><BackupsPage /></CoordOnly>} />
             <Route path="temporadas" element={<CoordOnly><SeasonsPage /></CoordOnly>} />
             <Route path="configuracion" element={<CoordOnly><ConfigPage /></CoordOnly>} />
             <Route path="usuarios" element={<CoordOnly><UsersPage /></CoordOnly>} />

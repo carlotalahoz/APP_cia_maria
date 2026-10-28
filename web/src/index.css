@@ -315,3 +315,12 @@ tr.clickable:hover td { background: var(--surface-2); }
 .bell-panel li button { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .bell-panel li button > span { display: block; overflow-wrap: anywhere; }
 .bell-panel li.unread .bell-title::before { content: '● '; color: var(--primary-2); }
+
+/* Fase 3 */
+.bar-chart { width: 100%; height: 180px; color: var(--text); }
+.print-only { display: none; }
+@media print {
+  .print-only { display: block; font-weight: 600; }
+  .card { break-inside: avoid; box-shadow: none; }
+  .tabs { display: none; }
+}
