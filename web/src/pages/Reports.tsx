@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { BarChart } from '../components/BarChart'
@@ -58,6 +58,10 @@ export function ReportsPage() {
   const playerParam = params.get('jugador')
   const season = seasons.find((s) => s.id === seasonId)
   const [tab, setTab] = useState<Tab>(playerParam ? 'jugador' : (params.get('tipo') as Tab) || 'asistencia')
+  // Abrir el informe del jugador al pulsar su nombre (cambia ?jugador= sin remontar la página).
+  useEffect(() => {
+    if (playerParam) setTab('jugador')
+  }, [playerParam])
   const [teamId, setTeamId] = useState('')
   const [from, setFrom] = useState(season?.start_date ?? isoDate(new Date(new Date().getFullYear(), 0, 1)))
   const [to, setTo] = useState(isoDate(new Date()))
