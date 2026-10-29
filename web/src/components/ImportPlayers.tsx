@@ -16,6 +16,8 @@ type Decision = 'crear' | 'omitir' | `vincular:${string}`
 interface Row extends ImportRow {
   dups: Dup[]
   decision: Decision
+  inTeam: boolean
+  inTeamDups: string[]
   result?: string
 }
 
@@ -41,6 +43,11 @@ export function ImportPlayers({ teamId, onClose, onDone }: { teamId: string; onC
     try {
       const mapped = mapImportRows(await readExcel(file))
       if (!mapped.length) throw new Error('El archivo no tiene filas de jugadores.')
+      const today = new Date().toISOString().slice(0, 10)
+      const enrolled = must(
+        await supabase.from('enrollments').select('player_id').eq('team_id', teamId).neq('kind', 'sube_puntual').or(`end_date.is.null,end_date.gte.${today}`),
+      ) as { player_id: string }[]
+      const inTeamIds = new Set(enrolled.map((e) => e.player_id))
       const out: Row[] = []
       for (const r of mapped) {
         let dups: Dup[] = []
@@ -49,7 +56,15 @@ export function ImportPlayers({ teamId, onClose, onDone }: { teamId: string; onC
             await supabase.rpc('find_player_duplicates', { p_first: r.data.first_name, p_last: r.data.last_name, p_birth: r.data.birth_date }),
           ) as Dup[]
         }
-        out.push({ ...r, dups, decision: r.errors.length ? 'omitir' : dups.length ? `vincular:${dups[0].id}` : 'crear' })
+        const linkable = dups.filter((d) => !inTeamIds.has(d.id))
+        const inTeam = dups.length > 0 && !linkable.length
+        out.push({
+          ...r,
+          dups,
+          inTeam,
+          inTeamDups: dups.filter((d) => inTeamIds.has(d.id)).map((d) => d.id),
+          decision: r.errors.length || inTeam ? 'omitir' : linkable.length ? `vincular:${linkable[0].id}` : 'crear',
+        })
       }
       setRows(out)
     } catch (e) {
@@ -120,7 +135,7 @@ export function ImportPlayers({ teamId, onClose, onDone }: { teamId: string; onC
                 <td>{r.data.birth_date ?? '—'}</td>
                 <td>{r.dorsal ?? ''}</td>
                 <td>
-                  {r.errors.length ? <Badge tone="danger">{r.errors.join(' · ')}</Badge> : r.dups.length ? <Badge tone="warn">Posible duplicado</Badge> : <Badge tone="ok">Nuevo</Badge>}
+                  {r.errors.length ? <Badge tone="danger">{r.errors.join(' · ')}</Badge> : r.inTeam ? <Badge tone="info">Ya está en el equipo</Badge> : r.dups.length ? <Badge tone="warn">Posible duplicado</Badge> : <Badge tone="ok">Nuevo</Badge>}
                   {r.result && <div className="small">{r.result}</div>}
                 </td>
                 <td>
@@ -132,7 +147,7 @@ export function ImportPlayers({ teamId, onClose, onDone }: { teamId: string; onC
                   >
                     {!r.errors.length && <option value="crear">Crear ficha nueva</option>}
                     {r.dups.map((d) => (
-                      <option key={d.id} value={`vincular:${d.id}`}>
+                      <option key={d.id} value={`vincular:${d.id}`} disabled={r.inTeamDups.includes(d.id)}>
                         Vincular a {d.first_name} {d.last_name} ({d.birth_date}{d.teams ? ` · ${d.teams}` : ''})
                       </option>
                     ))}
