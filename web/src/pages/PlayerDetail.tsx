@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { PlayerDocuments } from '../components/PlayerDocuments'
 import { PlayerForm, validatePlayer, type PlayerDraft } from '../components/PlayerForm'
 import { Badge, ErrorBox, Loading, PageHeader } from '../components/ui'
 import { computeStats, formatPct, STATUS_INFO, STATUS_ORDER } from '../lib/attendance'
@@ -33,7 +34,7 @@ type EnrollmentFull = Enrollment & { teams: (Pick<Team, 'id' | 'name' | 'code'> 
 
 export function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { isCoord, isPrincipalOf } = useAuth()
+  const { isCoord, isPrincipalOf, staff } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('datos')
   const [editing, setEditing] = useState(false)
@@ -72,6 +73,16 @@ export function PlayerDetailPage() {
     isCoord ||
     data.enrollments.some(
       (e) => (!e.end_date || e.end_date >= today) && isPrincipalOf(e.team_id) && e.teams?.seasons?.status === 'activa',
+    )
+
+  // Documentos: coordinadora o principal/ayudante de un equipo actual con temporada abierta (igual que en el servidor).
+  const canManageDocs =
+    isCoord ||
+    data.enrollments.some(
+      (e) =>
+        (!e.end_date || e.end_date >= today) &&
+        e.teams?.seasons?.status === 'activa' &&
+        staff.some((s) => s.team_id === e.team_id && s.staff_role !== 'delegado'),
     )
 
   const save = async () => {
@@ -202,7 +213,9 @@ export function PlayerDetailPage() {
             </tbody>
           </table>
         )}
-        {tab === 'documentos' && <p className="muted">La gestión documental llegará en la fase 3.</p>}
+        {tab === 'documentos' && (
+          <PlayerDocuments playerId={player.id} playerName={`${player.first_name} ${player.last_name}`} canManage={canManageDocs} />
+        )}
         {tab === 'partidos' &&
           (data.callups.length === 0 ? (
             <p className="muted">No ha sido convocado a ningún partido.</p>

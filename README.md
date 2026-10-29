@@ -7,11 +7,18 @@ Aplicación de gestión deportiva (solo baloncesto) para la Agrupación Deportiv
 - [Análisis funcional](docs/analisis_funcional.md) · [original .docx](docs/AD_Compania_de_Maria_Analisis_Funcional.docx)
 - [Manual de usuario](docs/manual_usuario.md) · [original .docx](docs/AD_Compania_de_Maria_Manual_de_Usuario.docx)
 
-## Estado: Fase 1
+## Estado: Fases 1, 2 y 3 del análisis
 
-Usuarios y roles, temporadas, categorías y pistas, equipos con horario y cuerpo técnico, fichas de jugadores
-(con historial, duplicados y «jugador que sube»), asistencia semanal con modo sin conexión y conflictos,
-notificaciones internas, papelera y auditoría.
+- **Fase 1:** usuarios y roles, temporadas, categorías y pistas, equipos con horario y cuerpo técnico, fichas de
+  jugadores (historial, duplicados y «jugador que sube»), asistencia semanal sin conexión con conflictos,
+  notificaciones internas, papelera y auditoría.
+- **Fase 2:** calendario semanal, cancelaciones y solicitudes con aprobación, partidos, convocatorias, resultados
+  por periodos, actas y estadísticas.
+- **Fase 3:** documentación de jugadores y técnicos, biblioteca, informes con exportación a Excel/PDF, importación
+  de jugadores desde Excel, incidencias, notificaciones en tiempo real y copias de seguridad con restauración.
+
+Pendiente fuera de las fases: publicación (Supabase en la nube, alojamiento y correo real), avisos push con la app
+cerrada, apps nativas iOS/Android y lectura automática del marcador de las actas.
 
 ## Tecnología
 

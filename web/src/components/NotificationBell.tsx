@@ -24,8 +24,23 @@ export function NotificationBell() {
     if (!session) return
     void load()
     const t = window.setInterval(load, 60_000)
-    return () => window.clearInterval(t)
+    // Tiempo real: avisa al instante y, si el usuario lo ha permitido, con una notificación del navegador.
+    const channel = supabase
+      .channel('notificaciones')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, (payload) => {
+        void load()
+        const n = payload.new as NotificationRow
+        if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+          new Notification(n.title, { body: n.body ?? undefined, icon: '/icon-192.png' })
+        }
+      })
+      .subscribe()
+    return () => {
+      window.clearInterval(t)
+      void supabase.removeChannel(channel)
+    }
   }, [session])
+  const canAskPermission = 'Notification' in window && Notification.permission === 'default'
 
   const unread = items.filter((n) => !n.read_at)
 
@@ -62,6 +77,13 @@ export function NotificationBell() {
               </button>
             )}
           </div>
+          {canAskPermission && (
+            <p className="pad small">
+              <button className="link" onClick={() => void Notification.requestPermission().then(() => setOpen(false))}>
+                Activar avisos del navegador
+              </button>
+            </p>
+          )}
           {items.length === 0 && <p className="muted pad">No hay notificaciones.</p>}
           <ul>
             {items.map((n) => (

@@ -22,11 +22,15 @@ const NAV: NavItem[] = [
   { to: '/partidos', label: 'Partidos', icon: '◉' },
   { to: '/asistencia', label: 'Asistencia', icon: '✓' },
   { to: '/solicitudes', label: 'Solicitudes', icon: '✉' },
+  { to: '/documentacion', label: 'Documentación', icon: '▣' },
+  { to: '/informes', label: 'Informes', icon: '▥' },
+  { to: '/incidencias', label: 'Incidencias', icon: '⚑' },
   { to: '/temporadas', label: 'Temporadas', icon: '▦', coordOnly: true },
   { to: '/configuracion', label: 'Categorías y pistas', icon: '⚙', coordOnly: true },
   { to: '/usuarios', label: 'Usuarios', icon: '⚇', coordOnly: true },
   { to: '/papelera', label: 'Papelera', icon: '⌫', coordOnly: true },
   { to: '/auditoria', label: 'Auditoría', icon: '☰', coordOnly: true },
+  { to: '/copias', label: 'Copias de seguridad', icon: '⛁', coordOnly: true },
 ]
 
 export function Layout() {
@@ -56,7 +60,7 @@ export function Layout() {
               <span className="nav-icon" aria-hidden="true">
                 {n.icon}
               </span>
-              {n.to === '/solicitudes' && isCoord ? 'Aprobaciones' : n.label}
+              {n.to === '/solicitudes' && isCoord ? 'Aprobaciones' : n.to === '/incidencias' && !isCoord ? 'Comunicar incidencia' : n.label}
             </NavLink>
           ))}
         </nav>

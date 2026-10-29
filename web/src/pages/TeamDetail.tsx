@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { AddPlayerModal } from '../components/AddPlayerModal'
+import { ImportPlayers } from '../components/ImportPlayers'
+import { exportPersonalExcel } from './Reports'
 import { TeamForm } from '../components/TeamForm'
 import { Badge, Empty, ErrorBox, Loading, PageHeader } from '../components/ui'
 import { hhmm, loadCategories, loadProfiles, loadVenues } from '../lib/data'
@@ -29,6 +31,7 @@ export function TeamDetailPage() {
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -178,11 +181,23 @@ export function TeamDetailPage() {
       <section className="card">
         <div className="row between">
           <h2>Jugadores ({current.length})</h2>
-          {open && (
-            <button className="btn btn-primary btn-s" onClick={() => setAdding(true)}>
-              + Añadir jugador
-            </button>
-          )}
+          <span className="row gap-s wrap">
+            {isPrincipalOf(team.id) && (
+              <button className="btn btn-s" onClick={() => void run(async () => { await exportPersonalExcel(team); return isCoord ? 'Excel descargado.' : 'Excel descargado. Coordinación ha sido notificada.' })}>
+                Excel con datos personales
+              </button>
+            )}
+            {canPrincipal && (
+              <button className="btn btn-s" onClick={() => setImporting(true)}>
+                Importar Excel
+              </button>
+            )}
+            {open && (
+              <button className="btn btn-primary btn-s" onClick={() => setAdding(true)}>
+                + Añadir jugador
+              </button>
+            )}
+          </span>
         </div>
         {current.length === 0 ? (
           <Empty>Sin jugadores.</Empty>
@@ -256,6 +271,16 @@ export function TeamDetailPage() {
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
+            void reload()
+          }}
+        />
+      )}
+      {importing && (
+        <ImportPlayers
+          teamId={team.id}
+          onClose={() => setImporting(false)}
+          onDone={() => {
+            setImporting(false)
             void reload()
           }}
         />

@@ -229,6 +229,74 @@ select pg_temp.check(exists (
     and extract(isodow from starts_at at time zone 'Europe/Madrid') = 1 and (starts_at at time zone 'Europe/Madrid')::time = '17:45'),
   'las sesiones futuras toman el nuevo horario');
 
+-- ---------------------------------------------------------------------------
+-- Fase 3: documentación, incidencias, exportaciones y copias de seguridad
+-- ---------------------------------------------------------------------------
+select pg_temp.as_user('00000000-0000-0000-0000-000000000005');
+select pg_temp.check(not exists (select 1 from public.player_documents d join public.enrollments e on e.player_id = d.player_id
+  where e.team_id = '30000000-0000-0000-0000-000000000001'), 'principal2 no ve documentos de jugadores ajenos');
+select pg_temp.check(not exists (select 1 from public.missing_player_documents('20000000-0000-0000-0000-000000002627') where team_id = '30000000-0000-0000-0000-000000000001'),
+  'principal2 no ve pendientes de otro equipo');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000003');
+insert into public.player_documents (player_id, type_id, season_id, path, file_name)
+values ('40000000-0000-0000-0000-000000000006', '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000002627',
+  'jugadores/40000000-0000-0000-0000-000000000006/x.pdf', 'x.pdf');
+select pg_temp.check(true, 'ayudante sube documentos de sus jugadores');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    insert into public.player_documents (player_id, type_id, path, file_name)
+    values ('40000000-0000-0000-0000-000000000006', '60000000-0000-0000-0000-000000000003', 'jugadores/40000000-0000-0000-0000-000000000006/dni.pdf', 'dni.pdf');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'el cuerpo técnico no sube documentos reservados');
+  perform public.trash_document('player', (select id from public.player_documents where path = 'jugadores/40000000-0000-0000-0000-000000000006/x.pdf'));
+  ok := false;
+  begin
+    update public.player_documents set deleted_at = null where path = 'jugadores/40000000-0000-0000-0000-000000000006/x.pdf';
+    ok := not found;
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'solo coordinación restaura documentos eliminados');
+end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-000000000004');
+do $$
+declare ok boolean := false;
+begin
+  begin
+    insert into public.player_documents (player_id, type_id, path, file_name)
+    values ('40000000-0000-0000-0000-000000000006', '60000000-0000-0000-0000-000000000002', 'jugadores/40000000-0000-0000-0000-000000000006/d.pdf', 'd.pdf');
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'delegado no sube documentos');
+  ok := false;
+  begin
+    perform public.log_export('plantilla', '30000000-0000-0000-0000-000000000001', true);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check(ok, 'delegado no exporta Excel con datos personales');
+end $$;
+insert into public.staff_documents (user_id, type_id, path, file_name, status)
+values ('00000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000004', 'tecnicos/00000000-0000-0000-0000-000000000004/c.pdf', 'c.pdf', 'aprobado');
+select pg_temp.check((select status from public.staff_documents where path like 'tecnicos/00000000-0000-0000-0000-000000000004/%') = 'pendiente',
+  'documento del técnico queda pendiente aunque intente aprobarlo');
+insert into public.incidents (user_id, title) values ('00000000-0000-0000-0000-000000000004', 'Prueba');
+select pg_temp.check((select count(*) from public.incidents) = 1, 'el técnico solo ve sus incidencias');
+select pg_temp.check((select count(*) from public.backups) = 0, 'el cuerpo técnico no ve copias de seguridad');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select public.log_export('plantilla', '30000000-0000-0000-0000-000000000001', true);
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.check(exists (select 1 from public.notifications where title = 'Descarga de Excel con datos personales'), 'coordinación recibe aviso de Excel personal');
+select pg_temp.check(exists (select 1 from public.notifications where title = 'Incidencia comunicada'), 'coordinación recibe aviso de incidencia');
+create temp table t_bk as select public.create_backup('manual') as id, (select count(*) from public.players) as n;
+grant select on t_bk to authenticated;
+update public.players set observations = 'cambiado tras la copia' where id = '40000000-0000-0000-0000-000000000001';
+select public.restore_backup((select id from t_bk));
+select pg_temp.check((select observations is distinct from 'cambiado tras la copia' from public.players where id = '40000000-0000-0000-0000-000000000001')
+  and (select count(*) from public.players) = (select n from t_bk), 'restaurar devuelve los datos de la copia');
+select pg_temp.check(exists (select 1 from public.backups where kind = 'previa_restauracion'), 'se crea una copia previa al restaurar');
+
 -- Temporada cerrada: el principal deja de poder editar datos personales; la coordinadora sí puede
 select set_config('role', 'postgres', true);
 update public.seasons set status = 'cerrada';

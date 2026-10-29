@@ -250,3 +250,69 @@ export const BRANCH_LABEL: Record<Team['branch'], string> = {
 }
 
 export const WEEKDAYS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+export interface DocumentType {
+  id: string
+  name: string
+  owner: 'jugador' | 'tecnico'
+  required: boolean
+  per_season: boolean
+  reserved: boolean
+  active: boolean
+  sort_order: number
+}
+
+export interface PlayerDocument {
+  id: string
+  player_id: string
+  type_id: string
+  season_id: string | null
+  path: string
+  file_name: string
+  mime: string | null
+  size: number | null
+  uploaded_by: string | null
+  uploaded_at: string
+  deleted_at: string | null
+}
+
+export interface StaffDocument extends Omit<PlayerDocument, 'player_id'> {
+  user_id: string
+  status: 'pendiente' | 'aprobado' | 'rechazado'
+  resolved_at: string | null
+  resolution_note: string | null
+}
+
+export interface LibraryDocument {
+  id: string
+  title: string
+  category: string
+  path: string
+  file_name: string
+  reserved: boolean
+  uploaded_by: string | null
+  uploaded_at: string
+  deleted_at: string | null
+}
+
+export interface Incident {
+  id: string
+  user_id: string
+  title: string
+  description: string | null
+  status: 'abierta' | 'resuelta'
+  created_at: string
+  resolved_at: string | null
+  resolution_note: string | null
+}
+
+export interface BackupRow {
+  id: string
+  created_at: string
+  created_by: string | null
+  kind: 'automatica' | 'manual' | 'previa_restauracion'
+  status: 'ok' | 'error'
+  counts: Record<string, number> | null
+  error: string | null
+  restored_at: string | null
+}
