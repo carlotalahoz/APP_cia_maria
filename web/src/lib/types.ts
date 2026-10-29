@@ -106,17 +106,105 @@ export interface Enrollment {
   event_id: string | null
 }
 
+export type EventType = 'entrenamiento' | 'preparacion_fisica' | 'partido' | 'tecnificacion' | 'torneo'
+export type EventStatus = 'pendiente_aprobacion' | 'programado' | 'pendiente' | 'aplazado' | 'cancelado' | 'finalizado'
+
 export interface EventRow {
   id: string
   team_id: string
-  type: 'entrenamiento' | 'partido'
+  type: EventType
   starts_at: string
   ends_at: string
   venue_id: string | null
-  status: 'programado' | 'cancelado'
+  status: EventStatus
   cancel_reason: string | null
   extraordinary: boolean
+  title?: string | null
+  notes?: string | null
+  postpone_reason?: string | null
+  original_starts_at?: string | null
+  created_by?: string | null
+  resolution_note?: string | null
+  updated_at?: string
 }
+
+export interface MatchPeriod {
+  for: number
+  against: number
+}
+
+export interface MatchRow {
+  event_id: string
+  kind: 'oficial' | 'amistoso'
+  school: boolean
+  competition: string | null
+  matchday: string | null
+  opponent: string
+  home: boolean
+  away_location: string | null
+  score_for: number | null
+  score_against: number | null
+  periods: MatchPeriod[]
+  incidents: string | null
+  suspended: boolean
+  staff_present: string[]
+  callup_saved_at: string | null
+  result_at: string | null
+}
+
+export interface MatchReport {
+  id: string
+  event_id: string
+  path: string
+  file_name: string
+  mime: string | null
+  uploaded_by: string | null
+  uploaded_at: string
+  replaced_at: string | null
+}
+
+export interface EventRequest {
+  id: string
+  event_id: string
+  requested_by: string | null
+  new_starts_at: string
+  new_ends_at: string
+  new_venue_id: string | null
+  reason: string
+  status: 'pendiente' | 'aprobada' | 'rechazada' | 'anulada'
+  resolved_at: string | null
+  resolution_note: string | null
+  created_at: string
+}
+
+export const EVENT_TYPE_LABEL: Record<EventType, string> = {
+  entrenamiento: 'Entrenamiento',
+  preparacion_fisica: 'Preparación física',
+  partido: 'Partido',
+  tecnificacion: 'Tecnificación',
+  torneo: 'Torneo',
+}
+
+export const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
+  pendiente_aprobacion: 'Pendiente de aprobación',
+  programado: 'Programado',
+  pendiente: 'Partido pendiente',
+  aplazado: 'Aplazado',
+  cancelado: 'Cancelado',
+  finalizado: 'Finalizado',
+}
+
+export const EVENT_STATUS_TONE: Record<EventStatus, 'neutral' | 'ok' | 'warn' | 'danger' | 'info'> = {
+  pendiente_aprobacion: 'warn',
+  programado: 'info',
+  pendiente: 'warn',
+  aplazado: 'warn',
+  cancelado: 'danger',
+  finalizado: 'ok',
+}
+
+/** Actividades en las que se puede pasar asistencia. */
+export const ATTENDABLE: EventStatus[] = ['programado', 'aplazado', 'finalizado', 'cancelado']
 
 export interface AttendanceRow {
   event_id: string

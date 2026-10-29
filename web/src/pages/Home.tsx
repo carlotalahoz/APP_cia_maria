@@ -5,7 +5,8 @@ import { computeStats, formatPct } from '../lib/attendance'
 import { loadTeams } from '../lib/data'
 import { addDays, fmtShort, fmtTime, startOfWeek } from '../lib/dates'
 import { supabase } from '../lib/supabase'
-import type { AttendanceRow, EventRow, Team } from '../lib/types'
+import { StatusBadge } from '../components/EventBits'
+import { EVENT_TYPE_LABEL, type AttendanceRow, type EventRow, type MatchRow, type Team } from '../lib/types'
 import { must, useAsync } from '../lib/useAsync'
 
 interface HomeData {
@@ -13,13 +14,15 @@ interface HomeData {
   week: EventRow[]
   pendingByTeam: Record<string, number>
   pctByTeam: Record<string, number | null>
+  upcoming: (EventRow & { matches: Pick<MatchRow, 'opponent' | 'home'> | null })[]
+  approvals: number
 }
 
 async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Promise<HomeData> {
   let teams = await loadTeams(seasonId)
   if (myTeamIds) teams = teams.filter((t) => myTeamIds.includes(t.id))
   const ids = teams.map((t) => t.id)
-  if (!ids.length) return { teams, week: [], pendingByTeam: {}, pctByTeam: {} }
+  if (!ids.length) return { teams, week: [], pendingByTeam: {}, pctByTeam: {}, upcoming: [], approvals: 0 }
 
   const monday = startOfWeek(new Date())
   const week = must(
@@ -29,8 +32,25 @@ async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Pr
       .in('team_id', ids)
       .gte('starts_at', monday.toISOString())
       .lt('starts_at', addDays(monday, 7).toISOString())
+      .not('status', 'eq', 'pendiente')
       .order('starts_at'),
   ) as EventRow[]
+  const upcoming = must(
+    await supabase
+      .from('events')
+      .select('*, matches(opponent,home)')
+      .in('team_id', ids)
+      .eq('type', 'partido')
+      .in('status', ['programado', 'aplazado', 'pendiente_aprobacion'])
+      .gte('starts_at', new Date().toISOString())
+      .order('starts_at')
+      .limit(6),
+  ) as HomeData['upcoming']
+  const [props, reqs] = await Promise.all([
+    supabase.from('events').select('id', { count: 'exact', head: true }).in('team_id', ids).eq('status', 'pendiente_aprobacion'),
+    supabase.from('event_requests').select('id', { count: 'exact', head: true }).eq('status', 'pendiente'),
+  ])
+  const approvals = (props.count ?? 0) + (reqs.count ?? 0)
 
   // Pendientes de asistencia: entrenamientos pasados con jugadores "Sin registrar" (últimos 30 días)
   const past = must(
@@ -38,7 +58,8 @@ async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Pr
       .from('events')
       .select('id,team_id,status')
       .in('team_id', ids)
-      .eq('status', 'programado')
+      .in('status', ['programado', 'aplazado', 'finalizado'])
+      .neq('type', 'partido')
       .lt('starts_at', new Date().toISOString())
       .gte('starts_at', addDays(new Date(), -30).toISOString()),
   ) as Pick<EventRow, 'id' | 'team_id' | 'status'>[]
@@ -63,7 +84,7 @@ async function loadHome(seasonId: string | null, myTeamIds: string[] | null): Pr
       pctByTeam[t] = s.percentage
     }
   }
-  return { teams, week, pendingByTeam, pctByTeam }
+  return { teams, week, pendingByTeam, pctByTeam, upcoming, approvals }
 }
 
 export function HomePage() {
@@ -86,6 +107,12 @@ export function HomePage() {
             <Link to="/asistencia" className="quick-btn">
               <span>✓</span>Registrar asistencia
             </Link>
+            <Link to="/calendario" className="quick-btn">
+              <span>▤</span>Calendario
+            </Link>
+            <Link to="/partidos" className="quick-btn">
+              <span>◉</span>Partidos
+            </Link>
             <Link to="/jugadores" className="quick-btn">
               <span>☺</span>Jugadores
             </Link>
@@ -101,7 +128,7 @@ export function HomePage() {
 
           <div className="grid-2">
             <section className="card">
-              <h2>Entrenamientos de esta semana</h2>
+              <h2>Actividades de esta semana</h2>
               {data.week.length === 0 ? (
                 <p className="muted">No hay actividades esta semana.</p>
               ) : (
@@ -114,7 +141,7 @@ export function HomePage() {
                           {fmtShort(ev.starts_at)} · {fmtTime(ev.starts_at)}–{fmtTime(ev.ends_at)}
                         </span>
                       </span>
-                      {ev.status === 'cancelado' ? <Badge tone="danger">Cancelado</Badge> : <Badge tone="info">Entrenamiento</Badge>}
+                      {ev.status === 'programado' ? <Badge tone="info">{EVENT_TYPE_LABEL[ev.type]}</Badge> : <StatusBadge status={ev.status} />}
                     </li>
                   ))}
                 </ul>
@@ -145,6 +172,40 @@ export function HomePage() {
                   ))}
                 </ul>
               )}
+            </section>
+          </div>
+
+          <div className="grid-2">
+            <section className="card">
+              <h2>Próximos partidos</h2>
+              {data.upcoming.length === 0 ? (
+                <p className="muted">No hay partidos programados.</p>
+              ) : (
+                <ul className="list">
+                  {data.upcoming.map((ev) => (
+                    <li key={ev.id}>
+                      <Link to={`/partidos/${ev.id}`} className="list-main">
+                        <strong>
+                          {teamName(ev.team_id)} {ev.matches?.home ? 'vs' : '@'} {ev.matches?.opponent}
+                        </strong>
+                        <span className="muted">
+                          {fmtShort(ev.starts_at)} · {fmtTime(ev.starts_at)}
+                        </span>
+                      </Link>
+                      <StatusBadge status={ev.status} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="card">
+              <h2>
+                {isCoord ? 'Pendiente de aprobar' : 'Solicitudes pendientes'} <Badge tone={data.approvals ? 'warn' : 'ok'}>{data.approvals}</Badge>
+              </h2>
+              <p className="muted small">Propuestas de partidos y actividades y cambios de horario o pista.</p>
+              <Link to="/solicitudes" className="btn btn-s">
+                {isCoord ? 'Ir a aprobaciones' : 'Ver solicitudes'}
+              </Link>
             </section>
           </div>
 

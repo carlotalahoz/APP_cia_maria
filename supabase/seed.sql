@@ -108,3 +108,80 @@ select ev.id, e.player_id,
 from public.events ev
 join public.enrollments e on e.team_id = ev.team_id
 where ev.starts_at < now() - interval '7 days';
+
+-- ---------------------------------------------------------------------------
+-- Fase 2: partidos, convocatorias, otras actividades y solicitudes de ejemplo
+-- ---------------------------------------------------------------------------
+with m(id, team, days, hour, venue, kind, school, competition, matchday, opponent, home, away_location) as (
+  values
+    ('50000000-0000-0000-0000-000000000001'::uuid, '30000000-0000-0000-0000-000000000001'::uuid, -24, '10:00', '10000000-0000-0000-0000-000000000001'::uuid, 'oficial', true,  'Juegos Escolares de Aragón', '1', 'CB Santa Ana', true, null),
+    ('50000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', -10, '11:30', null, 'oficial', true,  'Juegos Escolares de Aragón', '2', 'Colegio El Pilar', false, 'Pabellón El Pilar (Zaragoza)'),
+    ('50000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', 4, '10:00', '10000000-0000-0000-0000-000000000001', 'oficial', true,  'Juegos Escolares de Aragón', '3', 'CB Santa Ana', false, 'Pabellón Santa Ana'),
+    ('50000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000002', -17, '12:00', '10000000-0000-0000-0000-000000000002', 'oficial', false, 'Liga FAB Infantil', '1', 'Basket Mequinenza', true, null),
+    ('50000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000002', -3, '17:00', null, 'amistoso', false, null, null, 'CN Helios', false, 'CN Helios'),
+    ('50000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000002', 11, '12:00', '10000000-0000-0000-0000-000000000002', 'oficial', false, 'Liga FAB Infantil', '3', 'Stadium Casablanca', true, null)
+)
+, ev as (
+  insert into public.events (id, team_id, type, starts_at, ends_at, venue_id, status, created_by, resolved_by, resolved_at)
+  select id, team, 'partido',
+    ((current_date + days) + hour::time) at time zone 'Europe/Madrid',
+    ((current_date + days) + hour::time + interval '90 minutes') at time zone 'Europe/Madrid',
+    venue, case when days < 0 then 'finalizado' else 'programado' end::public.event_status,
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', now()
+  from m returning id
+)
+insert into public.matches (event_id, kind, school, competition, matchday, opponent, home, away_location)
+select id, kind::public.match_kind, school, competition, matchday, opponent, home, away_location from m;
+
+-- Convocatorias: toda la plantilla
+insert into public.match_callups (event_id, player_id, created_by)
+select ev.id, e.player_id, (select user_id from public.team_staff where team_id = ev.team_id and staff_role = 'principal' limit 1)
+from public.events ev join public.enrollments e on e.team_id = ev.team_id and e.kind = 'plantilla'
+where ev.type = 'partido';
+update public.matches set callup_saved_at = now() where exists (select 1 from public.match_callups c where c.event_id = matches.event_id);
+
+-- Resultados de los partidos ya jugados
+update public.matches set score_for = r.f, score_against = r.a, periods = r.p::jsonb,
+  result_by = (select user_id from public.team_staff ts join public.events e on e.team_id = ts.team_id
+               where e.id = matches.event_id and ts.staff_role = 'principal' limit 1),
+  result_at = now(), incidents = r.i
+from (values
+  ('50000000-0000-0000-0000-000000000001'::uuid, 34, 28, '[{"for":10,"against":6},{"for":8,"against":8},{"for":6,"against":7},{"for":10,"against":7}]', null),
+  ('50000000-0000-0000-0000-000000000002', 22, 30, '[{"for":4,"against":8},{"for":6,"against":6},{"for":6,"against":10},{"for":6,"against":6}]', 'Una jugadora se torció el tobillo en el tercer cuarto.'),
+  ('50000000-0000-0000-0000-000000000004', 58, 58, '[{"for":14,"against":12},{"for":16,"against":15},{"for":12,"against":18},{"for":16,"against":13}]', null),
+  ('50000000-0000-0000-0000-000000000005', 61, 47, '[{"for":15,"against":10},{"for":14,"against":12},{"for":18,"against":13},{"for":14,"against":12}]', null)
+) as r(id, f, a, p, i)
+where matches.event_id = r.id;
+
+-- Asistencia de los partidos jugados
+insert into public.attendance (event_id, player_id, status, updated_by, updated_at)
+select c.event_id, c.player_id,
+  (case when abs(hashtext(c.event_id::text || c.player_id::text)) % 10 = 0 then 'lesion' else 'asistencia' end)::public.attendance_status,
+  c.created_by, ev.ends_at
+from public.match_callups c join public.events ev on ev.id = c.event_id
+where ev.status = 'finalizado';
+
+-- Otras actividades
+insert into public.events (team_id, type, title, starts_at, ends_at, venue_id, status, extraordinary, created_by, notes)
+values
+  ('30000000-0000-0000-0000-000000000001', 'tecnificacion', 'Tecnificación de tiro',
+   ((current_date + 2) + time '16:30') at time zone 'Europe/Madrid', ((current_date + 2) + time '17:30') at time zone 'Europe/Madrid',
+   '10000000-0000-0000-0000-000000000002', 'programado', true, '00000000-0000-0000-0000-000000000001', 'Traer balón propio.'),
+  ('30000000-0000-0000-0000-000000000002', 'preparacion_fisica', 'Preparación física',
+   ((current_date + 1) + time '17:00') at time zone 'Europe/Madrid', ((current_date + 1) + time '18:00') at time zone 'Europe/Madrid',
+   '10000000-0000-0000-0000-000000000003', 'programado', true, '00000000-0000-0000-0000-000000000001', null);
+
+-- Propuesta pendiente de aprobación (amistoso propuesto por la entrenadora principal)
+insert into public.events (id, team_id, type, starts_at, ends_at, venue_id, status, created_by)
+values ('50000000-0000-0000-0000-000000000007', '30000000-0000-0000-0000-000000000001', 'partido',
+  ((current_date + 9) + time '11:00') at time zone 'Europe/Madrid', ((current_date + 9) + time '12:30') at time zone 'Europe/Madrid',
+  '10000000-0000-0000-0000-000000000001', 'pendiente_aprobacion', '00000000-0000-0000-0000-000000000002');
+insert into public.matches (event_id, kind, opponent, home) values ('50000000-0000-0000-0000-000000000007', 'amistoso', 'CB Utebo', true);
+
+-- Solicitud de cambio de pista pendiente para el próximo entrenamiento del Alevín
+insert into public.event_requests (event_id, requested_by, new_starts_at, new_ends_at, new_venue_id, reason)
+select id, '00000000-0000-0000-0000-000000000002', starts_at, ends_at, '10000000-0000-0000-0000-000000000002',
+  'La pista 1 está ocupada por la fiesta del colegio.'
+from public.events
+where team_id = '30000000-0000-0000-0000-000000000001' and type = 'entrenamiento' and starts_at > now() + interval '1 day'
+order by starts_at limit 1;

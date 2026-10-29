@@ -19,6 +19,16 @@ const TABS: [Tab, string][] = [
   ['observaciones', 'Observaciones'],
 ]
 
+type PlayerCallup = {
+  event_id: string
+  events:
+    | (Pick<EventRow, 'id' | 'team_id' | 'starts_at' | 'status'> & {
+        teams: { name: string } | null
+        matches: { opponent: string; home: boolean; competition: string | null; score_for: number | null; score_against: number | null } | null
+      })
+    | null
+}
+
 type EnrollmentFull = Enrollment & { teams: (Pick<Team, 'id' | 'name' | 'code'> & { seasons: Pick<Season, 'name' | 'status'> | null }) | null }
 
 export function PlayerDetailPage() {
@@ -31,7 +41,7 @@ export function PlayerDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, error, loading, reload, setData } = useAsync(async () => {
     const player = must(await supabase.from('players').select('*').eq('id', id!).maybeSingle()) as Player | null
     if (!player) throw new Error('Jugador no encontrado o sin permiso para verlo.')
     const enrollments = must(
@@ -40,7 +50,18 @@ export function PlayerDetailPage() {
     const attendance = must(
       await supabase.from('attendance').select('*, events(id,team_id,type,starts_at,ends_at,status)').eq('player_id', id!),
     ) as (AttendanceRow & { events: EventRow | null })[]
-    return { player, enrollments: enrollments.filter((e) => e.teams), attendance: attendance.filter((a) => a.events) }
+    const callups = must(
+      await supabase
+        .from('match_callups')
+        .select('event_id, events(id,team_id,starts_at,status, teams(name), matches(opponent,home,competition,score_for,score_against))')
+        .eq('player_id', id!),
+    ) as unknown as PlayerCallup[]
+    return {
+      player,
+      enrollments: enrollments.filter((e) => e.teams),
+      attendance: attendance.filter((a) => a.events),
+      callups: callups.filter((c) => c.events).sort((a, b) => b.events!.starts_at.localeCompare(a.events!.starts_at)),
+    }
   }, [id])
 
   if (loading) return <Loading />
@@ -81,7 +102,7 @@ export function PlayerDetailPage() {
     }
   }
 
-  const trainings = data.attendance.filter((a) => a.events!.type === 'entrenamiento' && a.events!.status === 'programado')
+  const trainings = data.attendance.filter((a) => a.events!.type !== 'partido' && ['programado', 'aplazado', 'finalizado'].includes(a.events!.status))
   const stats = computeStats(trainings.map((a) => a.status))
 
   return (
@@ -182,7 +203,55 @@ export function PlayerDetailPage() {
           </table>
         )}
         {tab === 'documentos' && <p className="muted">La gestión documental llegará en la fase 3.</p>}
-        {tab === 'partidos' && <p className="muted">Partidos y estadísticas llegarán en la fase 2.</p>}
+        {tab === 'partidos' &&
+          (data.callups.length === 0 ? (
+            <p className="muted">No ha sido convocado a ningún partido.</p>
+          ) : (
+            <>
+              <div className="stats">
+                <div className="stat">
+                  <span>{data.callups.length}</span>Convocatorias
+                </div>
+                <div className="stat">
+                  <span>
+                    {data.attendance.filter((a) => a.events?.type === 'partido' && (a.status === 'asistencia' || a.status === 'retraso')).length}
+                  </span>
+                  Partidos jugados
+                </div>
+              </div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Equipo</th>
+                    <th>Rival</th>
+                    <th>Resultado</th>
+                    <th>Asistencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.callups.map((c) => {
+                    const ev = c.events!
+                    const m = ev.matches
+                    const att = data.attendance.find((a) => a.event_id === c.event_id)
+                    return (
+                      <tr key={c.event_id}>
+                        <td>
+                          <Link to={`/partidos/${c.event_id}`}>{fmtShort(ev.starts_at)}</Link>
+                        </td>
+                        <td>{ev.teams?.name}</td>
+                        <td>
+                          {m?.home ? 'vs' : '@'} {m?.opponent}
+                        </td>
+                        <td>{m?.score_for != null ? `${m.score_for}-${m.score_against}` : '—'}</td>
+                        <td>{att ? <span className={`st st-${att.status}`}>{STATUS_INFO[att.status].label}</span> : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </>
+          ))}
         {tab === 'asistencias' && (
           <>
             <div className="stats">
@@ -241,7 +310,8 @@ export function PlayerDetailPage() {
             canEdit={canEdit}
             onSave={async (v) => {
               must(await supabase.from('players').update({ observations: v || null }).eq('id', player.id))
-              await reload()
+              // Actualización local: recargar desmontaría la pestaña y perdería el aviso de guardado.
+              setData((d) => d && { ...d, player: { ...d.player, observations: v || null } })
             }}
           />
         )}

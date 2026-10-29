@@ -6,12 +6,16 @@ import { Loading } from './components/ui'
 import { startAutoSync } from './lib/offline'
 import { AttendancePage } from './pages/Attendance'
 import { AuditPage } from './pages/Audit'
+import { CalendarPage } from './pages/Calendar'
 import { ConfigPage } from './pages/Config'
 import { HomePage } from './pages/Home'
 import { LoginPage } from './pages/Login'
+import { MatchDetailPage } from './pages/MatchDetail'
+import { MatchesPage } from './pages/Matches'
 import { PlayerDetailPage } from './pages/PlayerDetail'
 import { PlayersPage } from './pages/Players'
 import { RecoverPage } from './pages/Recover'
+import { RequestsPage } from './pages/Requests'
 import { SeasonsPage } from './pages/Seasons'
 import { SetPasswordPage } from './pages/SetPassword'
 import { TeamDetailPage } from './pages/TeamDetail'
@@ -47,6 +51,10 @@ export default function App() {
             <Route path="jugadores" element={<PlayersPage />} />
             <Route path="jugadores/:id" element={<PlayerDetailPage />} />
             <Route path="asistencia" element={<AttendancePage />} />
+            <Route path="calendario" element={<CalendarPage />} />
+            <Route path="partidos" element={<MatchesPage />} />
+            <Route path="partidos/:id" element={<MatchDetailPage />} />
+            <Route path="solicitudes" element={<RequestsPage />} />
             <Route path="temporadas" element={<CoordOnly><SeasonsPage /></CoordOnly>} />
             <Route path="configuracion" element={<CoordOnly><ConfigPage /></CoordOnly>} />
             <Route path="usuarios" element={<CoordOnly><UsersPage /></CoordOnly>} />

@@ -18,7 +18,10 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Inicio', icon: '⌂' },
   { to: '/equipos', label: 'Equipos', icon: '◎' },
   { to: '/jugadores', label: 'Jugadores', icon: '☺' },
+  { to: '/calendario', label: 'Calendario', icon: '▤' },
+  { to: '/partidos', label: 'Partidos', icon: '◉' },
   { to: '/asistencia', label: 'Asistencia', icon: '✓' },
+  { to: '/solicitudes', label: 'Solicitudes', icon: '✉' },
   { to: '/temporadas', label: 'Temporadas', icon: '▦', coordOnly: true },
   { to: '/configuracion', label: 'Categorías y pistas', icon: '⚙', coordOnly: true },
   { to: '/usuarios', label: 'Usuarios', icon: '⚇', coordOnly: true },
@@ -53,7 +56,7 @@ export function Layout() {
               <span className="nav-icon" aria-hidden="true">
                 {n.icon}
               </span>
-              {n.label}
+              {n.to === '/solicitudes' && isCoord ? 'Aprobaciones' : n.label}
             </NavLink>
           ))}
         </nav>

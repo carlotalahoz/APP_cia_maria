@@ -271,3 +271,47 @@ td.st-sin_registrar { background: var(--warn-bg); }
   .season-select > span, .topbar .badge-warn, .sync-text { display: none; }
   .season-select select { max-width: 120px; }
 }
+
+/* Fase 2: calendario y partidos */
+.type-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--primary)); vertical-align: middle; }
+.type-entrenamiento { --c: #1f6fbf; }
+.type-preparacion_fisica { --c: #138a8a; }
+.type-partido { --c: #e3151b; }
+.type-tecnificacion { --c: #7b4bc4; }
+.type-torneo { --c: #d9822b; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.cal-day { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; min-height: 140px; }
+.cal-day.today { border-color: var(--primary-2); box-shadow: 0 0 0 1px var(--primary-2); }
+.cal-day h3 { margin: 0 0 6px; font-size: 0.85rem; }
+.cal-event { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; font: inherit; color: var(--text); background: var(--surface-2);
+  border: 0; border-left: 4px solid var(--c, var(--primary)); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; cursor: pointer; }
+.cal-event:hover { filter: brightness(0.97); }
+.cal-time { font-size: 0.75rem; color: var(--muted); }
+.cal-event.st-ev-cancelado { background: var(--danger-bg); border-left-color: var(--danger); }
+.cal-event.st-ev-cancelado strong { text-decoration: line-through; color: var(--danger); }
+.cal-event.st-ev-pendiente_aprobacion { background: transparent; border: 1px dashed var(--warn); border-left: 4px dashed var(--warn); }
+@media (max-width: 900px) {
+  .cal-week { grid-template-columns: 1fr; }
+  .cal-day { min-height: 0; }
+}
+.scoreboard { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px; }
+.scoreboard strong { font-size: 1.8rem; }
+.periods input { width: 64px; }
+.dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0 0 12px; }
+.dl dt { color: var(--muted); }
+.dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+fieldset.plain { border: 0; padding: 0; margin: 0 0 12px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--surface-2); }
+@media print {
+  .sidebar, .topbar, .no-print, .scrim { display: none !important; }
+  .main { margin: 0 !important; }
+  .cal-week { grid-template-columns: repeat(7, 1fr); }
+}
+
+/* Notificaciones: elementos como bloques legibles (también en modo oscuro) */
+.bell-panel { overflow-x: hidden; max-width: calc(100vw - 16px); }
+.bell-panel li button { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.bell-panel li button > span { display: block; overflow-wrap: anywhere; }
+.bell-panel li.unread .bell-title::before { content: '● '; color: var(--primary-2); }

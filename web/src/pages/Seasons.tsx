@@ -4,7 +4,7 @@ import { Badge, ErrorBox, Field, Modal, PageHeader } from '../components/ui'
 import { loadTeams } from '../lib/data'
 import { fmtDate } from '../lib/dates'
 import { errorMessage, supabase } from '../lib/supabase'
-import type { Season, Team } from '../lib/types'
+import { EVENT_STATUS_LABEL, type EventStatus, type Season, type Team } from '../lib/types'
 import { must } from '../lib/useAsync'
 
 interface CloseCheck {
@@ -13,6 +13,8 @@ interface CloseCheck {
   staff: number
   events_past: number
   pending_attendance: { team: string; events: number }[]
+  unfinished_matches: { team: string; opponent: string; starts_at: string; status: EventStatus }[]
+  pending_requests: number
 }
 
 export function SeasonsPage() {
@@ -130,6 +132,21 @@ export function SeasonsPage() {
             </div>
           ) : (
             <div className="alert alert-ok">Todas las asistencias están registradas.</div>
+          )}
+          {closing.check.unfinished_matches.length > 0 && (
+            <div className="alert alert-warn">
+              Hay {closing.check.unfinished_matches.length} partidos sin finalizar:
+              <ul>
+                {closing.check.unfinished_matches.map((m, i) => (
+                  <li key={i}>
+                    {m.team} vs {m.opponent} · {fmtDate(m.starts_at)} · {EVENT_STATUS_LABEL[m.status]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {closing.check.pending_requests > 0 && (
+            <div className="alert alert-warn">Hay {closing.check.pending_requests} solicitudes o propuestas pendientes de aprobar.</div>
           )}
           <p className="muted small">Tras el cierre, los datos quedan en solo lectura salvo para coordinación.</p>
         </Modal>

@@ -7,6 +7,7 @@ import { loadTeams } from '../lib/data'
 import { addDays, fmtDate, fmtShort, fmtTime, isoDate, startOfWeek } from '../lib/dates'
 import { clearRejected, db, getRejected, queueAttendance, resolveConflict, subscribe, syncPending, type PendingAttendance } from '../lib/offline'
 import { errorMessage, supabase } from '../lib/supabase'
+import { EVENT_TYPE_LABEL } from '../lib/types'
 import type { AttendanceRow, AttendanceStatus, Enrollment, EventRow, Player, Team } from '../lib/types'
 import { must } from '../lib/useAsync'
 
@@ -30,8 +31,13 @@ async function fetchGrid(team: Team, weekStart: Date): Promise<GridData> {
       .eq('team_id', team.id)
       .gte('starts_at', from.toISOString())
       .lt('starts_at', to.toISOString())
+      .not('status', 'in', '(pendiente_aprobacion,pendiente)')
       .order('starts_at'),
   ) as EventRow[]
+  const matchIds = events.filter((e) => e.type === 'partido').map((e) => e.id)
+  const callups = matchIds.length
+    ? (must(await supabase.from('match_callups').select('event_id,player_id').in('event_id', matchIds)) as { event_id: string; player_id: string }[])
+    : []
   const enr = must(
     await supabase.from('enrollments').select('*, players(id,first_name,last_name,active,deleted_at)').eq('team_id', team.id),
   ) as (Enrollment & { players: (Pick<Player, 'id' | 'first_name' | 'last_name' | 'active' | 'deleted_at'>) | null })[]
@@ -45,6 +51,8 @@ async function fetchGrid(team: Team, weekStart: Date): Promise<GridData> {
           .filter((e) =>
             e.kind === 'sube_puntual' ? e.event_id === ev.id : e.start_date <= day && (!e.end_date || e.end_date >= day),
           )
+          // en partidos, solo los convocados
+          .filter((e) => ev.type !== 'partido' || callups.some((c) => c.event_id === ev.id && c.player_id === e.player_id))
           .map((e) => e.player_id),
       ),
     ]
@@ -67,7 +75,10 @@ export function AttendancePage() {
   const readOnly = !isCoord && seasons.find((s) => s.id === seasonId)?.status === 'cerrada'
   const [params, setParams] = useSearchParams()
   const [teams, setTeams] = useState<Team[]>([])
-  const [week, setWeek] = useState(() => startOfWeek(new Date()))
+  const [week, setWeek] = useState(() => {
+    const s = params.get('semana')
+    return startOfWeek(s ? new Date(s + 'T00:00:00') : new Date())
+  })
   const [grid, setGrid] = useState<GridData | null>(null)
   const [pending, setPending] = useState<PendingAttendance[]>([])
   const [rejected, setRejected] = useState<string[]>(getRejected())
@@ -86,7 +97,7 @@ export function AttendancePage() {
       .then((all) => {
         const list = isCoord ? all : all.filter((t) => myIds.includes(t.id))
         setTeams(list)
-        if (!teamId && list[0]) setParams({ equipo: list[0].id }, { replace: true })
+        if (!teamId && list[0]) setParams({ equipo: list[0].id, semana: isoDate(week) }, { replace: true })
       })
       .catch(async () => {
         // sin conexión: reconstruye la lista de equipos desde las instantáneas guardadas
@@ -200,7 +211,7 @@ export function AttendancePage() {
         title="Asistencia"
         subtitle="Cuadrícula semanal: filas jugadores, columnas sesiones"
         actions={
-          <select value={teamId} onChange={(e) => setParams({ equipo: e.target.value })} aria-label="Equipo">
+          <select value={teamId} onChange={(e) => setParams({ equipo: e.target.value, semana: isoDate(week) })} aria-label="Equipo">
             {teams.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -275,6 +286,7 @@ export function AttendancePage() {
                   return (
                     <th key={ev.id} className={ev.status === 'cancelado' ? 'cancelled' : ''}>
                       <div>{fmtShort(ev.starts_at)}</div>
+                      {ev.type !== 'entrenamiento' && <div className="small">{EVENT_TYPE_LABEL[ev.type]}</div>}
                       <div className="muted small">{fmtTime(ev.starts_at)}</div>
                       {ev.status === 'cancelado' ? (
                         <Badge tone="danger">Cancelado</Badge>
