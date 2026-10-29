@@ -34,7 +34,7 @@ function changed(r: AuditRow): string {
   if (!r.old_data || !r.new_data) return ''
   return Object.keys(r.new_data)
     .filter((k) => !['updated_at', 'updated_by'].includes(k) && JSON.stringify(r.old_data![k]) !== JSON.stringify(r.new_data![k]))
-    .map((k) => `${k}: ${String(r.old_data![k] ?? '—')} → ${String(r.new_data![k] ?? '—')}`)
+    .map((k) => `${k}: ${auditValue(r.old_data![k])} → ${auditValue(r.new_data![k])}`)
     .join('; ')
 }
 
@@ -100,4 +100,14 @@ export function AuditPage() {
       </div>
     </>
   )
+}
+
+function auditValue(v: unknown): string {
+  if (v == null || v === '') return '—'
+  if (Array.isArray(v)) {
+    if (!v.length) return '—'
+    return v.map((x) => (x && typeof x === 'object' && 'for' in x && 'against' in x ? `${x.for}-${x.against}` : auditValue(x))).join(', ')
+  }
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
 }

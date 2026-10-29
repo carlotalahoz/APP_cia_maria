@@ -326,3 +326,22 @@ begin
 end $$;
 
 rollback;
+
+-- Vincular a un jugador que ya está en el equipo no duplica su inscripción
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+do $$
+declare v_player uuid;
+begin
+  select e.player_id into v_player from public.enrollments e
+  where e.team_id = '30000000-0000-0000-0000-000000000001' and e.kind = 'plantilla' and e.end_date is null limit 1;
+  begin
+    perform public.link_player_to_team('30000000-0000-0000-0000-000000000001', v_player, 'plantilla', null::smallint);
+    raise exception 'FALLO: vincular duplicó la inscripción';
+  exception when others then
+    if sqlerrm <> 'El jugador ya está en este equipo' then raise; end if;
+    raise notice 'OK: vincular jugador ya inscrito se rechaza';
+  end;
+end $$;
+rollback;

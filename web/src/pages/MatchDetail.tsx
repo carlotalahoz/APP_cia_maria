@@ -510,7 +510,9 @@ function ResultTab({
   const [present, setPresent] = useState<string[]>(match.staff_present)
   const [err, setErr] = useState<string | null>(null)
 
-  const filled = periods.filter((p) => p.for !== '' || p.against !== '')
+  const isBlank = (p: { for: string; against: string }) => p.for === '' && p.against === ''
+  const lastFilled = periods.reduce((last, p, i) => (isBlank(p) ? last : i), -1)
+  const filled = periods.slice(0, lastFilled + 1)
   const sumFor = filled.reduce((a, p) => a + (Number(p.for) || 0), 0)
   const sumAgainst = filled.reduce((a, p) => a + (Number(p.against) || 0), 0)
   const mismatch = filled.length > 0 && sf !== '' && sa !== '' && (sumFor !== Number(sf) || sumAgainst !== Number(sa))
@@ -518,6 +520,7 @@ function ResultTab({
   const save = () => {
     setErr(null)
     if (sf === '' || sa === '') return setErr('Indica el marcador final de ambos equipos.')
+    if (filled.some(isBlank)) return setErr('Hay periodos vacíos antes del último con puntos: rellénalos (pon 0 si no hubo puntos).')
     void onSave({
       p_for: Number(sf),
       p_against: Number(sa),
